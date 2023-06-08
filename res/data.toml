@@ -1,0 +1,10 @@
+cipher = "Aes256"
+nonce = "U12"
+
+[udp_a]
+ip = "127.0.0.1"
+port = 34254
+
+[udp_b]
+ip = "127.0.0.1"
+port = 34250
