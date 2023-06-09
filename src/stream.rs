@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::stream::socket::Socket;
 
 pub(super) trait IOStream {
-    fn connect(&self, addr: SocketAddr) -> io::Result<()>;
+    fn connect(&self, addr: &SocketAddr) -> io::Result<()>;
 
     fn poll(&self) -> io::Result<Vec<u8>>;
 
@@ -15,7 +15,7 @@ pub(super) trait IOStream {
 }
 
 // TODO: add config details
-pub(super) fn get_stream<A: ToSocketAddrs>(addr: A) -> Arc<dyn IOStream + Sync + Send> {
+pub(super) fn get_stream<A: ToSocketAddrs>(addr: &A) -> Arc<dyn IOStream + Sync + Send> {
     Arc::new(Socket::new(addr).unwrap())
 }
 
@@ -33,11 +33,11 @@ mod tests {
         let addr_a: SocketAddr = SocketAddr::new(ip.into(), PORT_A);
         let addr_b: SocketAddr = SocketAddr::new(ip.into(), PORT_B);
 
-        let stream_a = get_stream(addr_a);
-        let stream_b = get_stream(addr_b);
+        let stream_a = get_stream(&addr_a);
+        let stream_b = get_stream(&addr_b);
 
-        stream_a.connect(addr_b).unwrap();
-        stream_b.connect(addr_a).unwrap();
+        stream_a.connect(&addr_b).unwrap();
+        stream_b.connect(&addr_a).unwrap();
 
         let buf = "data";
 

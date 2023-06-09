@@ -11,7 +11,7 @@ pub(super) struct Socket {
 
 // TODO: implement address struct?
 impl Socket {
-    pub fn new<A: ToSocketAddrs>(addr: A) -> Result<Socket, io::Error> {
+    pub fn new<A: ToSocketAddrs>(addr: &A) -> Result<Socket, io::Error> {
         match UdpSocket::bind(addr) {
             Ok(socket) => Ok(Socket { socket }),
             Err(err) => Err(err),
@@ -20,7 +20,7 @@ impl Socket {
 }
 
 impl IOStream for Socket {
-    fn connect(&self, addr: SocketAddr) -> io::Result<()> {
+    fn connect(&self, addr: &SocketAddr) -> io::Result<()> {
         self.socket.connect(addr)
     }
 
