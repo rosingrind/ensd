@@ -34,10 +34,11 @@ where
 {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let nonce = &ChaChaPoly1305::<C, N>::generate_nonce(&mut OsRng);
-        match self.cipher.encrypt(nonce, plaintext) {
-            Ok(data) => Ok([nonce.as_ref(), data.as_ref()].concat()),
-            Err(err) => Err(err),
-        }
+        Ok([
+            nonce.as_ref(),
+            self.cipher.encrypt(nonce, plaintext)?.as_ref(),
+        ]
+        .concat())
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
