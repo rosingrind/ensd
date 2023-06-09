@@ -17,7 +17,6 @@ where
     T: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
     U: ArrayLength<u8>,
 {
-    nonce: Nonce<AesGcm<T, U>>,
     cipher: AesGcm<T, U>,
 }
 
@@ -41,11 +40,20 @@ where
     U: ArrayLength<u8>,
 {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        self.cipher.encrypt(&self.nonce, plaintext)
+        let nonce = &AesGcm::<T, U>::generate_nonce(&mut OsRng);
+        match self.cipher.encrypt(nonce, plaintext) {
+            Ok(data) => Ok([nonce.as_ref(), data.as_ref()].concat()),
+            Err(err) => Err(err),
+        }
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        self.cipher.decrypt(&self.nonce, ciphertext)
+        let spec = Nonce::<AesGcm<T, U>>::default().len();
+        let (nonce, ciphertext) = {
+            let (a, b) = ciphertext.split_at(spec);
+            (a.into(), b)
+        };
+        self.cipher.decrypt(nonce, ciphertext)
     }
 }
 
@@ -53,7 +61,6 @@ impl<T: ArrayLength<u8>> From<Key<Aes128>> for Crypto<Aes128, T> {
     fn from(a: Key<Aes128>) -> Crypto<Aes128, T> {
         Crypto {
             cipher: AesGcm::<Aes128, T>::new(&a),
-            nonce: AesGcm::<Aes128, T>::generate_nonce(&mut OsRng),
         }
     }
 }
@@ -62,7 +69,6 @@ impl<T: ArrayLength<u8>> From<Key<Aes192>> for Crypto<Aes192, T> {
     fn from(a: Key<Aes192>) -> Crypto<Aes192, T> {
         Crypto {
             cipher: AesGcm::<Aes192, T>::new(&a),
-            nonce: AesGcm::<Aes192, T>::generate_nonce(&mut OsRng),
         }
     }
 }
@@ -71,7 +77,6 @@ impl<T: ArrayLength<u8>> From<Key<Aes256>> for Crypto<Aes256, T> {
     fn from(a: Key<Aes256>) -> Crypto<Aes256, T> {
         Crypto {
             cipher: AesGcm::<Aes256, T>::new(&a),
-            nonce: AesGcm::<Aes128, T>::generate_nonce(&mut OsRng),
         }
     }
 }
