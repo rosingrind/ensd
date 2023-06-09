@@ -1,10 +1,10 @@
-mod socket;
+mod udp;
 
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 
-use crate::stream::socket::Socket;
+use crate::stream::udp::UdpStream;
 
 pub(super) trait IOStream {
     fn connect(&self, addr: &SocketAddr) -> io::Result<()>;
@@ -15,8 +15,8 @@ pub(super) trait IOStream {
 }
 
 // TODO: add config details
-pub(super) fn get_stream<A: ToSocketAddrs>(addr: &A) -> Arc<dyn IOStream + Sync + Send> {
-    Arc::new(Socket::new(addr).unwrap())
+pub(super) fn get_udp_stream<A: ToSocketAddrs>(addr: &A) -> Arc<dyn IOStream + Sync + Send> {
+    Arc::new(UdpStream::new(addr).unwrap())
 }
 
 #[cfg(test)]
@@ -33,8 +33,8 @@ mod tests {
         let addr_a: SocketAddr = SocketAddr::new(ip.into(), PORT_A);
         let addr_b: SocketAddr = SocketAddr::new(ip.into(), PORT_B);
 
-        let stream_a = get_stream(&addr_a);
-        let stream_b = get_stream(&addr_b);
+        let stream_a = get_udp_stream(&addr_a);
+        let stream_b = get_udp_stream(&addr_b);
 
         stream_a.connect(&addr_b).unwrap();
         stream_b.connect(&addr_a).unwrap();

@@ -5,19 +5,19 @@ use crate::stream::IOStream;
 
 const MAX_BUF: usize = 256;
 
-pub(super) struct Socket {
+pub(super) struct UdpStream {
     socket: UdpSocket,
 }
 
-impl Socket {
-    pub fn new<A: ToSocketAddrs>(addr: &A) -> Result<Socket, io::Error> {
-        Ok(Socket {
+impl UdpStream {
+    pub fn new<A: ToSocketAddrs>(addr: &A) -> Result<UdpStream, io::Error> {
+        Ok(UdpStream {
             socket: UdpSocket::bind(addr)?,
         })
     }
 }
 
-impl IOStream for Socket {
+impl IOStream for UdpStream {
     fn connect(&self, addr: &SocketAddr) -> io::Result<()> {
         self.socket.connect(addr)
     }
