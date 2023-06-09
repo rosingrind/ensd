@@ -1,6 +1,5 @@
 [encryption]
-cipher = "Aes256"
-nonce = "U12"
+cipher = "ChaCha20"
 
 [udp_a]
 ip = "127.0.0.1"

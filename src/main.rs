@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::net::Ipv4Addr;
 use std::{fs, path::Path};
 
-use crate::cipher::{AesNonce, AesSpec};
+use crate::cipher::{AesNonce, AesSpec, ChaSpec};
 
 #[derive(Debug, Deserialize)]
 struct Data {
@@ -28,6 +28,10 @@ enum Encryption {
         cipher: AesSpec,
         #[serde(default)]
         nonce: AesNonce,
+    },
+    ChaCha {
+        #[serde(default)]
+        cipher: ChaSpec,
     },
 }
 
