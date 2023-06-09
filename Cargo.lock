@@ -205,6 +205,8 @@ dependencies = [
 name = "rust-app"
 version = "0.1.0"
 dependencies = [
+ "aead",
+ "aes",
  "aes-gcm",
  "serde",
  "toml",

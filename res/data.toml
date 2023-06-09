@@ -1,3 +1,4 @@
+[encryption]
 cipher = "Aes256"
 nonce = "U12"
 

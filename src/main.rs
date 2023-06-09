@@ -5,14 +5,11 @@ use serde::Deserialize;
 use std::net::Ipv4Addr;
 use std::{fs, path::Path};
 
-use crate::cipher::{CipherSpec, NonceSpec};
+use crate::cipher::{AesNonce, AesSpec};
 
 #[derive(Debug, Deserialize)]
 struct Data {
-    #[serde(default)]
-    cipher: CipherSpec,
-    #[serde(default)]
-    nonce: NonceSpec,
+    encryption: Encryption,
     udp_a: UDP,
     udp_b: UDP,
 }
@@ -21,6 +18,17 @@ struct Data {
 struct UDP {
     ip: Ipv4Addr,
     port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum Encryption {
+    AES {
+        #[serde(default)]
+        cipher: AesSpec,
+        #[serde(default)]
+        nonce: AesNonce,
+    },
 }
 
 const DATA_PATH: &str = "./res/data";
@@ -35,7 +43,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_valid() {
+    fn config_is_valid() {
         let path = Path::new(DATA_PATH).with_extension("toml");
         toml::from_str::<Data>(&*fs::read_to_string(path).unwrap()).unwrap();
     }
