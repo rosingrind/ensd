@@ -141,16 +141,18 @@ mod tests {
     }
 
     #[test]
-    fn cipher_diversity() {
+    fn cipher_integrity() {
         let aes = get_aes_cipher(&AesSpec::default(), &AesNonce::default());
         let cha = get_cha_cipher(&ChaSpec::default());
 
         let aes_res = aes.encrypt(STRING.as_ref()).unwrap();
         let cha_res = cha.encrypt(STRING.as_ref()).unwrap();
+        // ciphers are different
         assert_ne!(aes_res, cha_res);
 
         let aes_res = aes.decrypt(aes_res.as_ref()).unwrap();
         let cha_res = cha.decrypt(cha_res.as_ref()).unwrap();
+        // ciphers operating on the same data
         assert_eq!(aes_res, cha_res);
     }
 }

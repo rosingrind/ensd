@@ -11,7 +11,6 @@ use crate::cipher::IOCipher;
 
 pub(super) struct AesCipher<T, U>
 where
-    // FIXME: sync/extend trait list
     T: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
     U: ArrayLength<u8>,
 {

@@ -6,7 +6,6 @@ use crate::cipher::IOCipher;
 
 pub(super) struct ChaCipher<C, N>
 where
-    // FIXME: sync/extend trait list
     C: KeyIvInit<KeySize = U32, IvSize = N> + StreamCipher + StreamCipherSeek,
     N: ArrayLength<u8>,
 {
