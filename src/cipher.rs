@@ -14,6 +14,9 @@ use std::sync::Arc;
 use crate::cipher::aes::AesCipher;
 use crate::cipher::cha::ChaCipher;
 
+/// `AesSpec` for `.toml` config parsing.
+/// Offers [`Aes128`][Aes128], [`Aes192`][Aes192] and [`Aes256`][Aes256] block ciphers
+/// with [`Aes128`][AesSpec::default] being default choice.
 #[derive(Debug, Deserialize, Copy, Clone)]
 pub(super) enum AesSpec {
     Aes128,
@@ -21,6 +24,9 @@ pub(super) enum AesSpec {
     Aes256,
 }
 
+/// `ChaSpec` for `.toml` config parsing.
+/// Offers [`ChaCha20`][ChaCha20] and [`XChaCha20`][XChaCha20] block ciphers with
+/// [`ChaCha20`][ChaSpec::default] being default choice.
 #[derive(Debug, Deserialize, Copy, Clone)]
 pub(super) enum ChaSpec {
     ChaCha20,
@@ -39,6 +45,11 @@ impl Default for ChaSpec {
     }
 }
 
+/// `AesNonce` for `.toml` config parsing.
+/// Offers limited values accepted by [`TagSize`][aes_gcm::TagSize] for available
+/// [`AesSpec`][AesSpec] ciphers.
+///
+/// See [`get_aes_cipher`][get_aes_cipher] for details about recommended `AesNonce` values.
 #[derive(Debug, Deserialize, Copy, Clone)]
 pub(super) enum AesNonce {
     U12,
@@ -48,6 +59,11 @@ pub(super) enum AesNonce {
     U16,
 }
 
+/// `ChaNonce` for `.toml` config parsing.
+/// Offers limited values accepted by [`chacha20`][::cha] package for available
+/// [`ChaSpec`][ChaSpec] ciphers.
+///
+/// See [`get_cha_cipher`][get_cha_cipher] for details about recommended `ChaNonce` values.
 #[derive(Debug, Deserialize, Copy, Clone)]
 pub(super) enum ChaNonce {
     U12,
@@ -66,12 +82,24 @@ impl Default for ChaNonce {
     }
 }
 
+/// `IOCipher` trait for heterogeneous encryption implementation.
+/// Assumes method implementations to [`encrypt`][IOCipher::encrypt] and
+/// [`decrypt`][IOCipher::decrypt] data.
 pub(super) trait IOCipher {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>>;
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>>;
 }
 
+/// A thread-safe `AES` cipher constructor.
+/// Returns [`Arc`][Arc] wrapped trait object interfaced with abstract [`IOCipher`][IOCipher]
+/// trait.
+///
+/// `AES` cipher builder is meant to be configurable for various protocol implementation needs,
+/// but note that reference `AES` implementation treats [`U12`][AesNonce::default] nonce size.
+///
+/// Current cipher implementation allows [`Aes128`][Aes128], [`Aes192`][Aes192] and
+/// [`Aes256`][Aes256] block ciphers.
 pub(super) fn get_aes_cipher(
     cipher: &AesSpec,
     nonce: &AesNonce,
@@ -105,6 +133,16 @@ pub(super) fn get_aes_cipher(
     }
 }
 
+/// A thread-safe `ChaCha + Poly1305` cipher constructor.
+/// Returns [`Arc`][Arc] wrapped trait object interfaced with abstract [`IOCipher`][IOCipher]
+/// trait.
+///
+/// `ChaCha` cipher builder meant to be configurable for various protocol implementation needs,
+/// but note that reference `ChaCha` and `XChaCha` implementations treat
+/// [`U12`][ChaNonce::default] and [`U24`][ChaNonce::U24] nonce sizes.
+///
+/// Current cipher implementation allows [`ChaCha20`][ChaCha20] and [`XChaCha20`][XChaCha20]
+/// block ciphers.
 pub(super) fn get_cha_cipher(cipher: &ChaSpec) -> Arc<dyn IOCipher + Sync + Send> {
     match cipher {
         ChaSpec::ChaCha20 => Arc::new(ChaCipher::<ChaCha20, _>::from(ChaCha20::generate_key(

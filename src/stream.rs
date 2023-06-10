@@ -6,6 +6,9 @@ use std::sync::Arc;
 
 use crate::stream::udp::UdpStream;
 
+/// `IOStream` trait for heterogeneous transport implementation.
+/// Assumes method implementations to [`connect`][IOStream::connect], [`poll`][IOStream::poll]
+/// and [`push`][IOStream::push] data through channel.
 pub(super) trait IOStream {
     fn connect(&self, addr: &SocketAddr) -> io::Result<()>;
 
@@ -14,7 +17,15 @@ pub(super) trait IOStream {
     fn push(&self, buf: &[u8]) -> io::Result<()>;
 }
 
-// TODO: add config details
+/// A thread-safe `Stream` constructor.
+/// Returns [`Arc`][Arc] wrapped trait object interfaced with abstract [`IOStream`][IOStream]
+/// trait.
+///
+/// `Stream` builder is meant to be configurable and used with many transports, so it may be
+/// possible to use it with `WebRTC` transport in future.
+///
+/// Current implementation relies on `UDP`'s [`UdpSocket`][std::net::UdpSocket]
+/// opened with any address of [`SocketAddr`][std::net::SocketAddr] type.
 pub(super) fn get_udp_stream<A: ToSocketAddrs>(addr: &A) -> Arc<dyn IOStream + Sync + Send> {
     Arc::new(UdpStream::new(addr).unwrap())
 }
