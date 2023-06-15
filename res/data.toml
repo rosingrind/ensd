@@ -1,10 +1,18 @@
 [encryption]
 cipher = "ChaCha20"
 
-[udp_a]
+[msg_a]
 ip = "127.0.0.1"
 port = 34254
 
-[udp_b]
+[snd_a]
 ip = "127.0.0.1"
-port = 34250
+port = 34054
+
+[msg_b]
+ip = "127.0.0.1"
+port = 34254
+
+[snd_b]
+ip = "127.0.0.1"
+port = 34054

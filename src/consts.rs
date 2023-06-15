@@ -1,5 +1,6 @@
 pub const MSG_END_TAG: &[u8] = b"end\0msg\0";
 pub const PACKET_MAX_BUF: usize = 256;
+pub const RESOURCES_PATH: &str = "res";
 
 #[cfg(test)]
 pub const TEST_PHRASE: &str = "alpha test phrase";

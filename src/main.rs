@@ -4,15 +4,16 @@ mod stream;
 
 use serde::Deserialize;
 use std::net::Ipv4Addr;
-use std::{fs, path::Path};
 
 use crate::cipher::{AesNonce, AesSpec, ChaSpec};
 
 #[derive(Debug, Deserialize)]
-struct Data {
+struct Config {
     encryption: Encryption,
-    udp_a: UDP,
-    udp_b: UDP,
+    msg_a: UDP,
+    snd_a: UDP,
+    msg_b: UDP,
+    snd_b: UDP,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,20 +37,21 @@ enum Encryption {
     },
 }
 
-const DATA_PATH: &str = "./res/data";
-
 fn main() {
-    let path = Path::new(DATA_PATH).with_extension("toml");
-    toml::from_str::<Data>(&*fs::read_to_string(path).unwrap()).unwrap();
+    todo!()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    use crate::consts::RESOURCES_PATH;
+    use crate::Config;
 
     #[test]
     fn config_is_valid() {
-        let path = Path::new(DATA_PATH).with_extension("toml");
-        toml::from_str::<Data>(&*fs::read_to_string(path).unwrap()).unwrap();
+        let path = Path::new(RESOURCES_PATH).join("data.toml");
+        toml::from_str::<Config>(&*fs::read_to_string(path).unwrap()).unwrap();
     }
 }
