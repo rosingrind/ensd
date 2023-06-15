@@ -1,18 +1,23 @@
 mod aes;
 mod cha;
+mod rng;
 
 use ::aes::{Aes128, Aes192, Aes256};
 use ::cha::{cipher::KeyIvInit, ChaCha20, XChaCha20};
 use aead::{
     consts::{U12, U13, U14, U15, U16},
-    OsRng, Result,
+    rand_core::{block::BlockRng, CryptoRng, RngCore, SeedableRng},
+    Result,
 };
 use aes_gcm::KeyInit;
 use serde::Deserialize;
 
 use crate::cipher::aes::AesCipher;
 use crate::cipher::cha::ChaCipher;
+use crate::cipher::rng::AppRngCore;
 use crate::Encryption;
+
+pub(super) type AppRng = BlockRng<AppRngCore>;
 
 /// `AesSpec` for `.toml` config parsing.
 /// Offers [`Aes128`][Aes128], [`Aes192`][Aes192] and [`Aes256`][Aes256] block ciphers
@@ -59,26 +64,9 @@ pub(super) enum AesNonce {
     U16,
 }
 
-/// `ChaNonce` for `.toml` config parsing.
-/// Offers limited values accepted by [`chacha20`][::cha] package for available
-/// [`ChaSpec`][ChaSpec] ciphers.
-///
-/// See [`get_cha_cipher`][get_cha_cipher] for details about recommended `ChaNonce` values.
-#[derive(Debug, Deserialize, Copy, Clone)]
-pub(super) enum ChaNonce {
-    U12,
-    U24,
-}
-
 impl Default for AesNonce {
     fn default() -> Self {
         AesNonce::U12
-    }
-}
-
-impl Default for ChaNonce {
-    fn default() -> Self {
-        ChaNonce::U12
     }
 }
 
@@ -96,10 +84,10 @@ pub(super) struct CipherHandle {
 }
 
 impl CipherHandle {
-    pub fn new(cfg: &Encryption) -> CipherHandle {
+    pub fn new(cfg: &Encryption, rng: impl CryptoRng + RngCore) -> CipherHandle {
         let cipher = match cfg {
-            Encryption::AES { cipher, nonce } => get_aes_cipher(cipher, nonce),
-            Encryption::ChaCha { cipher } => get_cha_cipher(cipher),
+            Encryption::AES { cipher, nonce } => get_aes_cipher(cipher, nonce, rng),
+            Encryption::ChaCha { cipher } => get_cha_cipher(cipher, rng),
         };
 
         CipherHandle { cipher }
@@ -126,32 +114,34 @@ impl CipherHandle {
 pub(super) fn get_aes_cipher(
     cipher: &AesSpec,
     nonce: &AesNonce,
+    rng: impl CryptoRng + RngCore,
 ) -> Box<dyn IOCipher + Sync + Send> {
+    let gen_rng = BlockRng::<AppRngCore>::from_rng(rng).unwrap();
     match nonce {
         AesNonce::U12 => match cipher {
-            AesSpec::Aes128 => Box::new(AesCipher::<_, U12>::from(Aes128::generate_key(OsRng))),
-            AesSpec::Aes192 => Box::new(AesCipher::<_, U12>::from(Aes192::generate_key(OsRng))),
-            AesSpec::Aes256 => Box::new(AesCipher::<_, U12>::from(Aes256::generate_key(OsRng))),
+            AesSpec::Aes128 => Box::new(AesCipher::<_, U12>::from(Aes128::generate_key(gen_rng))),
+            AesSpec::Aes192 => Box::new(AesCipher::<_, U12>::from(Aes192::generate_key(gen_rng))),
+            AesSpec::Aes256 => Box::new(AesCipher::<_, U12>::from(Aes256::generate_key(gen_rng))),
         },
         AesNonce::U13 => match cipher {
-            AesSpec::Aes128 => Box::new(AesCipher::<_, U13>::from(Aes128::generate_key(OsRng))),
-            AesSpec::Aes192 => Box::new(AesCipher::<_, U13>::from(Aes192::generate_key(OsRng))),
-            AesSpec::Aes256 => Box::new(AesCipher::<_, U13>::from(Aes256::generate_key(OsRng))),
+            AesSpec::Aes128 => Box::new(AesCipher::<_, U13>::from(Aes128::generate_key(gen_rng))),
+            AesSpec::Aes192 => Box::new(AesCipher::<_, U13>::from(Aes192::generate_key(gen_rng))),
+            AesSpec::Aes256 => Box::new(AesCipher::<_, U13>::from(Aes256::generate_key(gen_rng))),
         },
         AesNonce::U14 => match cipher {
-            AesSpec::Aes128 => Box::new(AesCipher::<_, U14>::from(Aes128::generate_key(OsRng))),
-            AesSpec::Aes192 => Box::new(AesCipher::<_, U14>::from(Aes192::generate_key(OsRng))),
-            AesSpec::Aes256 => Box::new(AesCipher::<_, U14>::from(Aes256::generate_key(OsRng))),
+            AesSpec::Aes128 => Box::new(AesCipher::<_, U14>::from(Aes128::generate_key(gen_rng))),
+            AesSpec::Aes192 => Box::new(AesCipher::<_, U14>::from(Aes192::generate_key(gen_rng))),
+            AesSpec::Aes256 => Box::new(AesCipher::<_, U14>::from(Aes256::generate_key(gen_rng))),
         },
         AesNonce::U15 => match cipher {
-            AesSpec::Aes128 => Box::new(AesCipher::<_, U15>::from(Aes128::generate_key(OsRng))),
-            AesSpec::Aes192 => Box::new(AesCipher::<_, U15>::from(Aes192::generate_key(OsRng))),
-            AesSpec::Aes256 => Box::new(AesCipher::<_, U15>::from(Aes256::generate_key(OsRng))),
+            AesSpec::Aes128 => Box::new(AesCipher::<_, U15>::from(Aes128::generate_key(gen_rng))),
+            AesSpec::Aes192 => Box::new(AesCipher::<_, U15>::from(Aes192::generate_key(gen_rng))),
+            AesSpec::Aes256 => Box::new(AesCipher::<_, U15>::from(Aes256::generate_key(gen_rng))),
         },
         AesNonce::U16 => match cipher {
-            AesSpec::Aes128 => Box::new(AesCipher::<_, U16>::from(Aes128::generate_key(OsRng))),
-            AesSpec::Aes192 => Box::new(AesCipher::<_, U16>::from(Aes192::generate_key(OsRng))),
-            AesSpec::Aes256 => Box::new(AesCipher::<_, U16>::from(Aes256::generate_key(OsRng))),
+            AesSpec::Aes128 => Box::new(AesCipher::<_, U16>::from(Aes128::generate_key(gen_rng))),
+            AesSpec::Aes192 => Box::new(AesCipher::<_, U16>::from(Aes192::generate_key(gen_rng))),
+            AesSpec::Aes256 => Box::new(AesCipher::<_, U16>::from(Aes256::generate_key(gen_rng))),
         },
     }
 }
@@ -166,13 +156,17 @@ pub(super) fn get_aes_cipher(
 ///
 /// Current cipher implementation allows [`ChaCha20`][ChaCha20] and [`XChaCha20`][XChaCha20]
 /// block ciphers.
-pub(super) fn get_cha_cipher(cipher: &ChaSpec) -> Box<dyn IOCipher + Sync + Send> {
+pub(super) fn get_cha_cipher(
+    cipher: &ChaSpec,
+    rng: impl CryptoRng + RngCore,
+) -> Box<dyn IOCipher + Sync + Send> {
+    let gen_rng = BlockRng::<AppRngCore>::from_rng(rng).unwrap();
     match cipher {
         ChaSpec::ChaCha20 => Box::new(ChaCipher::<ChaCha20, _>::from(ChaCha20::generate_key(
-            OsRng,
+            gen_rng,
         ))),
         ChaSpec::XChaCha20 => Box::new(ChaCipher::<XChaCha20, _>::from(XChaCha20::generate_key(
-            OsRng,
+            gen_rng,
         ))),
     }
 }
@@ -182,14 +176,18 @@ mod tests {
     use super::*;
     use crate::consts::TEST_STRING;
 
+    use aead::OsRng;
     use futures::executor::block_on;
 
     #[test]
     fn aes_works() {
-        let cipher = CipherHandle::new(&Encryption::AES {
-            cipher: AesSpec::default(),
-            nonce: AesNonce::default(),
-        });
+        let cipher = CipherHandle::new(
+            &Encryption::AES {
+                cipher: AesSpec::default(),
+                nonce: AesNonce::default(),
+            },
+            OsRng,
+        );
         let res = block_on(
             cipher.decrypt(
                 block_on(cipher.encrypt(TEST_STRING.as_ref()))
@@ -203,9 +201,12 @@ mod tests {
 
     #[test]
     fn cha_works() {
-        let cipher = CipherHandle::new(&Encryption::ChaCha {
-            cipher: ChaSpec::default(),
-        });
+        let cipher = CipherHandle::new(
+            &Encryption::ChaCha {
+                cipher: ChaSpec::default(),
+            },
+            OsRng,
+        );
         let res = block_on(
             cipher.decrypt(
                 block_on(cipher.encrypt(TEST_STRING.as_ref()))
@@ -219,13 +220,19 @@ mod tests {
 
     #[test]
     fn cipher_integrity() {
-        let aes = CipherHandle::new(&Encryption::AES {
-            cipher: AesSpec::default(),
-            nonce: AesNonce::default(),
-        });
-        let cha = CipherHandle::new(&Encryption::ChaCha {
-            cipher: ChaSpec::default(),
-        });
+        let aes = CipherHandle::new(
+            &Encryption::AES {
+                cipher: AesSpec::default(),
+                nonce: AesNonce::default(),
+            },
+            OsRng,
+        );
+        let cha = CipherHandle::new(
+            &Encryption::ChaCha {
+                cipher: ChaSpec::default(),
+            },
+            OsRng,
+        );
 
         let aes_res = block_on(aes.encrypt(TEST_STRING.as_ref())).unwrap();
         let cha_res = block_on(cha.encrypt(TEST_STRING.as_ref())).unwrap();
