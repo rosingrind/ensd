@@ -2,7 +2,6 @@ mod udp;
 
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::Arc;
 
 use crate::stream::udp::UdpStream;
 
@@ -10,11 +9,36 @@ use crate::stream::udp::UdpStream;
 /// Assumes method implementations to [`connect`][IOStream::connect], [`poll`][IOStream::poll]
 /// and [`push`][IOStream::push] data through channel.
 pub(super) trait IOStream {
-    fn connect(&self, addr: &SocketAddr) -> io::Result<()>;
+    fn connect(&self, addr: &[SocketAddr]) -> io::Result<()>;
 
     fn poll(&self) -> io::Result<Vec<u8>>;
 
     fn push(&self, buf: &[u8]) -> io::Result<()>;
+}
+
+pub(super) struct StreamHandle {
+    socket: Box<dyn IOStream + Sync + Send>,
+}
+
+impl StreamHandle {
+    pub fn new<A: ToSocketAddrs>(addr: &A) -> StreamHandle {
+        let socket = get_udp_stream(addr);
+
+        StreamHandle { socket }
+    }
+
+    pub async fn connect<A: ToSocketAddrs>(&self, addr: &A) -> io::Result<()> {
+        let addr = &*addr.to_socket_addrs().unwrap().collect::<Vec<_>>();
+        self.socket.connect(addr)
+    }
+
+    pub async fn poll(&self) -> io::Result<Vec<u8>> {
+        self.socket.poll()
+    }
+
+    pub async fn push(&self, buf: &[u8]) -> io::Result<()> {
+        self.socket.push(buf)
+    }
 }
 
 /// A thread-safe `Stream` constructor.
@@ -26,13 +50,16 @@ pub(super) trait IOStream {
 ///
 /// Current implementation relies on `UDP`'s [`UdpSocket`][std::net::UdpSocket]
 /// opened with any address of [`SocketAddr`][std::net::SocketAddr] type.
-pub(super) fn get_udp_stream<A: ToSocketAddrs>(addr: &A) -> Arc<dyn IOStream + Sync + Send> {
-    Arc::new(UdpStream::new(addr).unwrap())
+pub(super) fn get_udp_stream<A: ToSocketAddrs>(addr: &A) -> Box<dyn IOStream + Sync + Send> {
+    Box::new(UdpStream::new(&*addr.to_socket_addrs().unwrap().collect::<Vec<_>>()).unwrap())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::TEST_STRING;
+
+    use futures::executor::block_on;
     use std::net::{Ipv4Addr, SocketAddr};
 
     #[test]
@@ -44,16 +71,14 @@ mod tests {
         let addr_a: SocketAddr = SocketAddr::new(ip.into(), PORT_A);
         let addr_b: SocketAddr = SocketAddr::new(ip.into(), PORT_B);
 
-        let stream_a = get_udp_stream(&addr_a);
-        let stream_b = get_udp_stream(&addr_b);
+        let stream_a = StreamHandle::new(&addr_a);
+        let stream_b = StreamHandle::new(&addr_b);
 
-        stream_a.connect(&addr_b).unwrap();
-        stream_b.connect(&addr_a).unwrap();
+        block_on(stream_a.connect(&addr_b)).unwrap();
+        block_on(stream_b.connect(&addr_a)).unwrap();
 
-        let buf = "data";
-
-        stream_a.push(buf.as_ref()).unwrap();
-        let res = stream_b.poll().unwrap();
-        assert_eq!(res.as_slice(), buf.as_bytes());
+        block_on(stream_a.push(TEST_STRING.as_ref())).unwrap();
+        let res = block_on(stream_b.poll()).unwrap();
+        assert_eq!(res.as_slice(), TEST_STRING.as_bytes());
     }
 }

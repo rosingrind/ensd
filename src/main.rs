@@ -1,4 +1,5 @@
 mod cipher;
+mod consts;
 mod stream;
 
 use serde::Deserialize;
