@@ -1,10 +1,42 @@
 use aead::rand_core::block::BlockRngCore;
 use aead::rand_core::{CryptoRng, SeedableRng};
+use sha2::{Digest, Sha256};
 
-type Seed = [u8; 32];
+const N: usize = 32;
+type SeedArray = [u8; N];
+
+pub struct AppRngSeed(pub SeedArray);
+
+impl Default for AppRngSeed {
+    fn default() -> AppRngSeed {
+        AppRngSeed([0; N])
+    }
+}
+
+impl AsMut<[u8]> for AppRngSeed {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl From<String> for AppRngSeed {
+    fn from(value: String) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(value);
+        Self(hasher.finalize().into())
+    }
+}
+
+impl From<&str> for AppRngSeed {
+    fn from(value: &str) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(value);
+        Self(hasher.finalize().into())
+    }
+}
 
 pub struct AppRngCore {
-    seed: Seed,
+    seed: AppRngSeed,
 }
 
 impl CryptoRng for AppRngCore {}
@@ -15,10 +47,10 @@ impl BlockRngCore for AppRngCore {
 
     // FIXME: proper `generate` implementation
     fn generate(&mut self, results: &mut Self::Results) {
-        let step = self.seed.len() / results.len();
+        let step = self.seed.0.len() / results.len();
         for (r, n) in results
             .iter_mut()
-            .zip(self.seed.chunks(4).cycle().step_by(step))
+            .zip(self.seed.0.chunks(4).cycle().step_by(step))
         {
             *r = u32::from_ne_bytes([n[1], n[3], n[0], n[2]]);
         }
@@ -26,10 +58,11 @@ impl BlockRngCore for AppRngCore {
 }
 
 impl SeedableRng for AppRngCore {
-    type Seed = Seed;
+    type Seed = AppRngSeed;
 
+    // FIXME: proper `seed` storing
     fn from_seed(seed: Self::Seed) -> Self {
-        AppRngCore { seed }
+        Self { seed }
     }
 }
 
@@ -37,7 +70,7 @@ impl SeedableRng for AppRngCore {
 mod tests {
     use super::*;
     use crate::cipher::{AesNonce, AesSpec, CipherHandle};
-    use crate::consts::{TEST_SEED, TEST_STRING};
+    use crate::consts::{TEST_PHRASE, TEST_STRING};
     use crate::Encryption;
 
     use aead::{
@@ -49,11 +82,11 @@ mod tests {
     #[test]
     fn seeding_works() {
         let mut buf = [0; 16];
-        BlockRng::<AppRngCore>::from_seed(TEST_SEED).fill_bytes(&mut buf);
+        BlockRng::<AppRngCore>::from_seed(TEST_PHRASE.into()).fill_bytes(&mut buf);
         // byte filling is properly seeded
         assert_ne!(buf, [0; 16]);
 
-        BlockRng::<AppRngCore>::from_seed([0; 32]).fill_bytes(&mut buf);
+        BlockRng::<AppRngCore>::from_seed(AppRngSeed::default()).fill_bytes(&mut buf);
         // blank seed produces blank fills
         assert_eq!(buf, [0; 16]);
     }
@@ -65,14 +98,14 @@ mod tests {
                 cipher: AesSpec::default(),
                 nonce: AesNonce::default(),
             },
-            BlockRng::<AppRngCore>::from_seed(TEST_SEED),
+            BlockRng::<AppRngCore>::from_seed(TEST_PHRASE.into()),
         );
         let aes_b = CipherHandle::new(
             &Encryption::AES {
                 cipher: AesSpec::default(),
                 nonce: AesNonce::default(),
             },
-            BlockRng::<AppRngCore>::from_seed(TEST_SEED),
+            BlockRng::<AppRngCore>::from_seed(TEST_PHRASE.into()),
         );
 
         let txt_a = block_on(aes_a.encrypt(TEST_STRING.as_ref())).unwrap();
