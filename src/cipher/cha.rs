@@ -1,4 +1,4 @@
-use aead::{consts::U32, generic_array::ArrayLength, Aead, Key, Nonce, OsRng, Result};
+use aead::{consts::U32, generic_array::ArrayLength, Aead, Error, Key, Nonce, OsRng, Result};
 use cha::cipher::{KeyInit, KeyIvInit, StreamCipher, StreamCipherSeek};
 use chacha20poly1305::{AeadCore, ChaChaPoly1305};
 
@@ -42,6 +42,9 @@ where
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
+        if spec > ciphertext.len() {
+            return Err(Error);
+        }
         let (nonce, ciphertext) = {
             let (a, b) = ciphertext.split_at(spec);
             (a.into(), b)

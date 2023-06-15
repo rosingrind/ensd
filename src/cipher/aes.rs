@@ -1,8 +1,6 @@
-use aead::{
-    consts::U16, generic_array::ArrayLength, Aead, AeadCore, KeyInit, Nonce, OsRng, Result,
-};
+use aead::{consts::U16, generic_array::ArrayLength, Aead, AeadCore, Error, Nonce, OsRng, Result};
 use aes::{
-    cipher::{BlockCipher, BlockEncrypt, BlockSizeUser},
+    cipher::{BlockCipher, BlockEncrypt, BlockSizeUser, KeyInit},
     Aes128, Aes192, Aes256,
 };
 use aes_gcm::{AesGcm, Key};
@@ -47,6 +45,9 @@ where
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let spec = Nonce::<AesGcm<T, U>>::default().len();
+        if spec > ciphertext.len() {
+            return Err(Error);
+        }
         let (nonce, ciphertext) = {
             let (a, b) = ciphertext.split_at(spec);
             (a.into(), b)
