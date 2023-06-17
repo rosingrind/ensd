@@ -9,7 +9,6 @@ use aead::{
     rand_core::{block::BlockRng, CryptoRng, RngCore, SeedableRng},
     Result,
 };
-use aes_gcm::KeyInit;
 use serde::Deserialize;
 
 use crate::cipher::aes::AesCipher;
@@ -17,6 +16,7 @@ use crate::cipher::cha::ChaCipher;
 use crate::cipher::rng::AppRngCore;
 use crate::Encryption;
 
+#[allow(dead_code)]
 pub(super) type AppRng = BlockRng<AppRngCore>;
 
 /// `AesSpec` for `.toml` config parsing.
@@ -76,13 +76,18 @@ impl Default for AesNonce {
 pub(super) trait IOCipher {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>>;
 
+    fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()>;
+
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>>;
+
+    fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()>;
 }
 
 pub(super) struct CipherHandle {
     cipher: Box<dyn IOCipher + Sync + Send>,
 }
 
+#[allow(dead_code)]
 impl CipherHandle {
     pub fn new(cfg: &Encryption, rng: impl CryptoRng + RngCore) -> CipherHandle {
         let cipher = match cfg {
@@ -97,8 +102,26 @@ impl CipherHandle {
         self.cipher.encrypt(plaintext)
     }
 
+    pub async fn encrypt_at(
+        &self,
+        nonce: &[u8],
+        associated_data: &[u8],
+        buffer: &mut Vec<u8>,
+    ) -> Result<()> {
+        self.cipher.encrypt_at(nonce, associated_data, buffer)
+    }
+
     pub async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         self.cipher.decrypt(ciphertext)
+    }
+
+    pub async fn decrypt_at(
+        &self,
+        nonce: &[u8],
+        associated_data: &[u8],
+        buffer: &mut Vec<u8>,
+    ) -> Result<()> {
+        self.cipher.decrypt_at(nonce, associated_data, buffer)
     }
 }
 
@@ -116,6 +139,8 @@ pub(super) fn get_aes_cipher(
     nonce: &AesNonce,
     rng: impl CryptoRng + RngCore,
 ) -> Box<dyn IOCipher + Sync + Send> {
+    use aes_gcm::KeyInit;
+
     let gen_rng = BlockRng::<AppRngCore>::from_rng(rng).unwrap();
     match nonce {
         AesNonce::U12 => match cipher {

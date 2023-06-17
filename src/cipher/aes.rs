@@ -1,4 +1,7 @@
-use aead::{consts::U16, generic_array::ArrayLength, Aead, AeadCore, Error, Nonce, OsRng, Result};
+use aead::{
+    consts::U16, generic_array::ArrayLength, Aead, AeadCore, AeadInPlace, Error, Nonce, OsRng,
+    Result,
+};
 use aes::{
     cipher::{BlockCipher, BlockEncrypt, BlockSizeUser, KeyInit},
     Aes128, Aes192, Aes256,
@@ -43,6 +46,13 @@ where
         .concat())
     }
 
+    fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
+        match nonce.try_into() {
+            Ok(nonce) => self.cipher.encrypt_in_place(nonce, associated_data, buffer),
+            Err(_) => Err(Error),
+        }
+    }
+
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let spec = Nonce::<AesGcm<T, U>>::default().len();
         if spec > ciphertext.len() {
@@ -53,6 +63,13 @@ where
             (a.into(), b)
         };
         self.cipher.decrypt(nonce, ciphertext)
+    }
+
+    fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
+        match nonce.try_into() {
+            Ok(nonce) => self.cipher.decrypt_in_place(nonce, associated_data, buffer),
+            Err(_) => Err(Error),
+        }
     }
 }
 
