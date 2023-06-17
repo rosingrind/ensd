@@ -1,6 +1,7 @@
 mod ice;
 mod udp;
 
+use log::{error, trace};
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
@@ -33,8 +34,21 @@ pub(super) struct StreamHandle {
 impl StreamHandle {
     pub fn new<A: ToSocketAddrs>(addr: &A, dur: Option<Duration>) -> StreamHandle {
         let pub_ip = match ice::query_stun(addr) {
-            Ok(ip) => Some(ip),
-            Err(_) => None,
+            Ok(ip) => {
+                trace!(
+                    "socket on {:?} allocated with public address {:?}",
+                    addr.to_socket_addrs().unwrap().collect::<Vec<SocketAddr>>(),
+                    ip
+                );
+                Some(ip)
+            }
+            Err(_) => {
+                error!(
+                    "can't query public address for socket on {:?}",
+                    addr.to_socket_addrs().unwrap().collect::<Vec<SocketAddr>>()
+                );
+                None
+            }
         };
 
         let socket = get_udp_stream(addr, dur);

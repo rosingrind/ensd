@@ -15,4 +15,6 @@ toml = "0.7.4"
 aead = "0.5.2"
 futures = "0.3.28"
 sha2 = "0.10.6"
+log = "0.4.19"
+log4rs = { version = "1.2.0", features = ["all_components", "config_parsing", "toml_format"] }
 stunclient = { version = "0.4.0", default-features = false }

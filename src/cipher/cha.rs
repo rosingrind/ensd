@@ -3,6 +3,7 @@ use aead::{
 };
 use cha::cipher::{KeyInit, KeyIvInit, StreamCipher, StreamCipherSeek};
 use chacha20poly1305::{AeadCore, ChaChaPoly1305};
+use log::error;
 
 use crate::cipher::IOCipher;
 
@@ -45,13 +46,25 @@ where
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
         match nonce.try_into() {
             Ok(nonce) => self.cipher.encrypt_in_place(nonce, associated_data, buffer),
-            Err(_) => Err(Error),
+            Err(_) => {
+                error!(
+                    "'encrypt_at' error: nonce size '{}' is incompatible with '{}'",
+                    nonce.len(),
+                    Nonce::<ChaChaPoly1305<C, N>>::default().len()
+                );
+                Err(Error)
+            }
         }
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
         if spec > ciphertext.len() {
+            error!(
+                "'decrypt' error: nonce size '{}' is bigger than 'ciphertext.len()':'{}'",
+                spec,
+                ciphertext.len()
+            );
             return Err(Error);
         }
         let (nonce, ciphertext) = {
@@ -64,7 +77,14 @@ where
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
         match nonce.try_into() {
             Ok(nonce) => self.cipher.decrypt_in_place(nonce, associated_data, buffer),
-            Err(_) => Err(Error),
+            Err(_) => {
+                error!(
+                    "'decrypt_at' error: nonce size '{}' is incompatible with '{}'",
+                    nonce.len(),
+                    Nonce::<ChaChaPoly1305<C, N>>::default().len()
+                );
+                Err(Error)
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ use aes::{
     Aes128, Aes192, Aes256,
 };
 use aes_gcm::{AesGcm, Key};
+use log::error;
 
 use crate::cipher::IOCipher;
 
@@ -49,13 +50,25 @@ where
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
         match nonce.try_into() {
             Ok(nonce) => self.cipher.encrypt_in_place(nonce, associated_data, buffer),
-            Err(_) => Err(Error),
+            Err(_) => {
+                error!(
+                    "'encrypt_at' error: nonce size '{}' is incompatible with '{}'",
+                    nonce.len(),
+                    Nonce::<AesGcm<T, U>>::default().len()
+                );
+                Err(Error)
+            }
         }
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let spec = Nonce::<AesGcm<T, U>>::default().len();
         if spec > ciphertext.len() {
+            error!(
+                "'decrypt' error: nonce size '{}' is bigger than 'ciphertext.len()':'{}'",
+                spec,
+                ciphertext.len()
+            );
             return Err(Error);
         }
         let (nonce, ciphertext) = {
@@ -68,7 +81,14 @@ where
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
         match nonce.try_into() {
             Ok(nonce) => self.cipher.decrypt_in_place(nonce, associated_data, buffer),
-            Err(_) => Err(Error),
+            Err(_) => {
+                error!(
+                    "'decrypt_at' error: nonce size '{}' is incompatible with '{}'",
+                    nonce.len(),
+                    Nonce::<AesGcm<T, U>>::default().len()
+                );
+                Err(Error)
+            }
         }
     }
 }

@@ -1,0 +1,31 @@
+#refresh_rate = "30 seconds"
+
+[appenders.stdout]
+kind = "console"
+encoder = { pattern = "[{({l}):1.1}] {m}{n}" }
+filters = [{ kind = "threshold", level = "info" }]
+
+[appenders.common]
+kind = "file"
+path = "log/bench.log"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} {({l}):>5.5} - {m}{n}" }
+
+[appenders.cipher]
+kind = "file"
+path = "log/cipher.log"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} {({l}):>5.5} - {m}{n}" }
+
+[appenders.stream]
+kind = "file"
+path = "log/stream.log"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} {({l}):>5.5} - {m}{n}" }
+
+[root]
+level = "trace"
+appenders = ["stdout", "common"]
+
+[loggers]
+"rust_app::stream::udp" = { level = "trace", appenders = ["stdout", "stream"], additive = false }
+"rust_app::stream" = { level = "trace", appenders = ["stream"], additive = false }
+"rust_app::cipher::aes" = { level = "trace", appenders = ["cipher"], additive = false }
+"rust_app::cipher::cha" = { level = "trace", appenders = ["cipher"], additive = false }

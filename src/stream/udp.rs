@@ -1,4 +1,5 @@
 use crate::consts::{MSG_END_TAG, PACKET_MAX_BUF};
+use log::info;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
@@ -21,6 +22,11 @@ impl UdpStream {
 
 impl IOStream for UdpStream {
     fn bind(&self, addr: &[SocketAddr]) -> io::Result<()> {
+        info!(
+            "UDP socket at :{} is connecting to {:?}",
+            self.socket.local_addr()?.port(),
+            addr
+        );
         self.socket.connect(addr)
     }
 
