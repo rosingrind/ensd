@@ -3,22 +3,20 @@ mod consts;
 mod stream;
 
 use serde::Deserialize;
-use std::net::Ipv4Addr;
+use std::net::IpAddr;
 
 use crate::cipher::{AesNonce, AesSpec, ChaSpec};
 
 #[derive(Debug, Deserialize)]
 struct Config {
     encryption: Encryption,
-    msg_a: UDP,
-    snd_a: UDP,
-    msg_b: UDP,
-    snd_b: UDP,
+    msg_addr: UDP,
+    snd_addr: UDP,
 }
 
 #[derive(Debug, Deserialize)]
 struct UDP {
-    ip: Ipv4Addr,
+    ip: IpAddr,
     port: u16,
 }
 
@@ -51,7 +49,7 @@ mod tests {
 
     #[test]
     fn config_is_valid() {
-        let path = Path::new(RESOURCES_PATH).join("data.toml");
+        let path = Path::new(RESOURCES_PATH).join("cfg.toml");
         toml::from_str::<Config>(&*fs::read_to_string(path).unwrap()).unwrap();
     }
 }
