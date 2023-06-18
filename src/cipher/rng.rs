@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 const N: usize = 32;
 type SeedArray = [u8; N];
 
+/// `AppRngSeed` for generic usage of [`AppRngCore`][AppRngCore] with `String` and `&str` types.
 pub struct AppRngSeed(pub SeedArray);
 
 impl Default for AppRngSeed {
@@ -35,6 +36,9 @@ impl From<&str> for AppRngSeed {
     }
 }
 
+/// `AppRngCore` for generic [`BlockRng`][aead::rand_core::block::BlockRng] instancing.
+///
+/// Implements [`generate`][AppRngCore::generate] method based on stored [`seed`][AppRngSeed] value.
 pub struct AppRngCore {
     seed: AppRngSeed,
 }
