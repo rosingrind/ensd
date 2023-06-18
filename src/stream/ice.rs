@@ -3,7 +3,7 @@ use stunclient::{Error, StunClient};
 
 use crate::consts::STUN_ADDRESS;
 
-pub(super) fn query_stun<A: ToSocketAddrs>(addr: &A) -> Result<SocketAddr, Error> {
+pub(super) async fn query_stun<A: ToSocketAddrs>(addr: &A) -> Result<SocketAddr, Error> {
     let stun_addr = STUN_ADDRESS
         .to_socket_addrs()
         .unwrap()

@@ -1,6 +1,7 @@
 mod ice;
 mod udp;
 
+use futures::executor::block_on;
 use log::{error, trace};
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -33,7 +34,7 @@ pub(super) struct StreamHandle {
 #[allow(dead_code)]
 impl StreamHandle {
     pub fn new<A: ToSocketAddrs>(addr: &A, dur: Option<Duration>) -> StreamHandle {
-        let pub_ip = match ice::query_stun(addr) {
+        let pub_ip = match block_on(ice::query_stun(addr)) {
             Ok(ip) => {
                 trace!(
                     "socket on {:?} allocated with public address {:?}",
@@ -148,6 +149,6 @@ mod tests {
     #[test]
     fn stun_works() {
         let addr = &(TEST_MACHINE_IP, 0);
-        assert!(ice::query_stun(addr).is_ok());
+        assert!(block_on(ice::query_stun(addr)).is_ok());
     }
 }
