@@ -201,7 +201,9 @@ mod tests {
     use super::*;
     use crate::consts::TEST_STRING;
 
-    use aead::OsRng;
+    use aead::{consts::U24, Nonce, OsRng};
+    use aes_gcm::AesGcm;
+    use chacha20poly1305::ChaChaPoly1305;
     use futures::executor::block_on;
 
     #[test]
@@ -222,6 +224,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(res.as_slice(), TEST_STRING.as_bytes());
+
+        let res = block_on(cipher.encrypt_at(
+            Nonce::<AesGcm<Aes256, U16>>::default().as_ref(),
+            &[],
+            &mut vec![0u8; 24],
+        ));
+        assert!(res.is_err());
     }
 
     #[test]
@@ -241,6 +250,13 @@ mod tests {
         )
         .unwrap();
         assert_eq!(res.as_slice(), TEST_STRING.as_bytes());
+
+        let res = block_on(cipher.encrypt_at(
+            Nonce::<ChaChaPoly1305<XChaCha20, U24>>::default().as_ref(),
+            &[],
+            &mut vec![0u8; 24],
+        ));
+        assert!(res.is_err());
     }
 
     #[test]

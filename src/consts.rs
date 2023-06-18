@@ -2,7 +2,7 @@
 use std::net::{IpAddr, Ipv4Addr};
 
 pub const MSG_END_TAG: &[u8] = b"end\0msg\0";
-pub const PACKET_MAX_BUF: usize = 256;
+pub const PACKET_BUF_SIZE: usize = 256;
 pub const RESOURCES_PATH: &str = "res";
 pub const STUN_ADDRESS: &str = "stun.l.google.com:19302";
 

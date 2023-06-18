@@ -1,4 +1,4 @@
-use crate::consts::{MSG_END_TAG, PACKET_MAX_BUF};
+use crate::consts::{MSG_END_TAG, PACKET_BUF_SIZE};
 use log::info;
 use std::io;
 use std::net::{SocketAddr, UdpSocket};
@@ -35,8 +35,8 @@ impl IOStream for UdpStream {
     }
 
     fn poll(&self) -> io::Result<Vec<u8>> {
-        let mut buf = [0; PACKET_MAX_BUF];
-        let mut res = Vec::<u8>::with_capacity(PACKET_MAX_BUF * 4);
+        let mut buf = [0; PACKET_BUF_SIZE];
+        let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         loop {
             let len = self.socket.recv(&mut buf)?;
@@ -51,8 +51,8 @@ impl IOStream for UdpStream {
     }
 
     fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
-        let mut buf = [0; PACKET_MAX_BUF];
-        let mut res = Vec::<u8>::with_capacity(PACKET_MAX_BUF * 4);
+        let mut buf = [0; PACKET_BUF_SIZE];
+        let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         let addr = loop {
             let (len, addr) = self.socket.recv_from(&mut buf)?;
@@ -67,14 +67,14 @@ impl IOStream for UdpStream {
     }
 
     fn push(&self, buf: &[u8]) -> io::Result<()> {
-        for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_MAX_BUF) {
+        for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_BUF_SIZE) {
             self.socket.send(buf)?;
         }
         Ok(())
     }
 
     fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()> {
-        for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_MAX_BUF) {
+        for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_BUF_SIZE) {
             for addr in addr {
                 self.socket.send_to(buf, addr)?;
             }

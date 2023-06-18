@@ -48,16 +48,17 @@ where
     }
 
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
-        match nonce.try_into() {
-            Ok(nonce) => self.cipher.encrypt_in_place(nonce, associated_data, buffer),
-            Err(_) => {
-                error!(
-                    "'encrypt_at' error: nonce size '{}' is incompatible with '{}'",
-                    nonce.len(),
-                    Nonce::<AesGcm<T, U>>::default().len()
-                );
-                Err(Error)
-            }
+        let spec = Nonce::<AesGcm<T, U>>::default().len();
+        if nonce.len() == spec {
+            self.cipher
+                .encrypt_in_place(nonce.into(), associated_data, buffer)
+        } else {
+            error!(
+                "'encrypt_at' error: nonce size '{}' is incompatible with '{}'",
+                nonce.len(),
+                spec
+            );
+            Err(Error)
         }
     }
 
@@ -79,16 +80,17 @@ where
     }
 
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
-        match nonce.try_into() {
-            Ok(nonce) => self.cipher.decrypt_in_place(nonce, associated_data, buffer),
-            Err(_) => {
-                error!(
-                    "'decrypt_at' error: nonce size '{}' is incompatible with '{}'",
-                    nonce.len(),
-                    Nonce::<AesGcm<T, U>>::default().len()
-                );
-                Err(Error)
-            }
+        let spec = Nonce::<AesGcm<T, U>>::default().len();
+        if nonce.len() == spec {
+            self.cipher
+                .decrypt_in_place(nonce.into(), associated_data, buffer)
+        } else {
+            error!(
+                "'decrypt_at' error: nonce size '{}' is incompatible with '{}'",
+                nonce.len(),
+                spec
+            );
+            Err(Error)
         }
     }
 }
