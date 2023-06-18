@@ -25,7 +25,7 @@ level = "trace"
 appenders = ["stdout", "common"]
 
 [loggers]
-"rust_app::stream::udp" = { level = "trace", appenders = ["stdout", "stream"], additive = false }
-"rust_app::stream" = { level = "trace", appenders = ["stream"], additive = false }
-"rust_app::cipher::aes" = { level = "trace", appenders = ["cipher"], additive = false }
-"rust_app::cipher::cha" = { level = "trace", appenders = ["cipher"], additive = false }
+"ensd::stream::udp" = { level = "trace", appenders = ["stdout", "stream"], additive = false }
+"ensd::stream" = { level = "trace", appenders = ["stream"], additive = false }
+"ensd::cipher::aes" = { level = "trace", appenders = ["cipher"], additive = false }
+"ensd::cipher::cha" = { level = "trace", appenders = ["cipher"], additive = false }
