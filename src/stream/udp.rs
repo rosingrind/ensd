@@ -1,8 +1,9 @@
-use crate::consts::{MSG_END_TAG, PACKET_BUF_SIZE};
-use log::info;
+use crate::consts::{MSG_END_TAG, PACKET_BUF_SIZE, STUN_ADDRESS};
+use log::{info, trace};
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::time::Duration;
+use stunclient::{Error as StunError, StunClient};
 
 use crate::stream::IOStream;
 
@@ -10,11 +11,15 @@ pub(super) struct UdpStream {
     socket: UdpSocket,
 }
 
+pub(super) type StunResult<T> = Result<T, StunError>;
+
 impl UdpStream {
     #[allow(dead_code)]
-    pub fn new(addr: &[SocketAddr], dur: Option<Duration>) -> Result<UdpStream, io::Error> {
+    pub fn new(addr: &[SocketAddr], ttl: Option<u32>) -> io::Result<UdpStream> {
         let socket = UdpSocket::bind(addr)?;
-        socket.set_read_timeout(dur)?;
+        if let Some(ttl) = ttl {
+            socket.set_ttl(ttl)?;
+        }
 
         Ok(UdpStream { socket })
     }
@@ -22,12 +27,13 @@ impl UdpStream {
 
 impl IOStream for UdpStream {
     fn bind(&self, addr: &[SocketAddr]) -> io::Result<()> {
+        self.socket.connect(addr)?;
         info!(
-            "UDP socket at :{} is connecting to {:?}",
+            "UDP socket at :{} is connected to {:?}",
             self.socket.local_addr()?.port(),
             addr
         );
-        self.socket.connect(addr)
+        Ok(())
     }
 
     fn peer(&self) -> io::Result<SocketAddr> {
@@ -80,5 +86,33 @@ impl IOStream for UdpStream {
             }
         }
         Ok(())
+    }
+
+    fn get_timeout(&self) -> io::Result<Option<Duration>> {
+        self.socket.read_timeout()
+    }
+
+    fn set_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.socket.set_read_timeout(dur)
+    }
+
+    fn get_ttl(&self) -> io::Result<u32> {
+        self.socket.ttl()
+    }
+
+    fn set_ttl(&self, ttl: u32) -> io::Result<()> {
+        self.socket.set_ttl(ttl)
+    }
+
+    fn get_ip_stun(&self) -> StunResult<SocketAddr> {
+        trace!("querying STUN at '{}'", STUN_ADDRESS);
+        let stun_addr = STUN_ADDRESS
+            .to_socket_addrs()
+            .unwrap()
+            .find(|x| x.is_ipv4())
+            .unwrap();
+        let c = StunClient::new(stun_addr);
+
+        c.query_external_address(&self.socket)
     }
 }

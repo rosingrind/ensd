@@ -1,13 +1,15 @@
 mod ice;
 mod udp;
 
-use futures::executor::block_on;
 use log::{error, trace};
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 
-use crate::stream::udp::UdpStream;
+use crate::stream::ice::ICE;
+use crate::stream::udp::{StunResult, UdpStream};
+
+const PUNCH_HOLE_RETRIES: u8 = 10;
 
 /// `IOStream` trait for heterogeneous transport implementation.
 /// Assumes method implementations to [`connect`][IOStream::connect], [`poll`][IOStream::poll]
@@ -24,6 +26,16 @@ pub(super) trait IOStream {
     fn push(&self, buf: &[u8]) -> io::Result<()>;
 
     fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()>;
+
+    fn get_timeout(&self) -> io::Result<Option<Duration>>;
+
+    fn set_timeout(&self, dur: Option<Duration>) -> io::Result<()>;
+
+    fn get_ttl(&self) -> io::Result<u32>;
+
+    fn set_ttl(&self, ttl: u32) -> io::Result<()>;
+
+    fn get_ip_stun(&self) -> StunResult<SocketAddr>;
 }
 
 pub(super) struct StreamHandle {
@@ -33,8 +45,9 @@ pub(super) struct StreamHandle {
 
 #[allow(dead_code)]
 impl StreamHandle {
-    pub fn new<A: ToSocketAddrs>(addr: &A, dur: Option<Duration>) -> StreamHandle {
-        let pub_ip = match block_on(ice::query_stun(addr)) {
+    pub fn new<A: ToSocketAddrs + Sync>(addr: &A, ttl: Option<u32>) -> StreamHandle {
+        let socket = get_udp_stream(addr, ttl);
+        let pub_ip = match socket.get_ip_stun() {
             Ok(ip) => {
                 trace!(
                     "socket on {:?} allocated with public address {:?}",
@@ -51,12 +64,11 @@ impl StreamHandle {
                 None
             }
         };
-
-        let socket = get_udp_stream(addr, dur);
         StreamHandle { socket, pub_ip }
     }
 
-    pub async fn bind<A: ToSocketAddrs>(&self, addr: &A) -> io::Result<()> {
+    pub async fn bind<A: ToSocketAddrs + Sync>(&self, addr: &A) -> io::Result<()> {
+        self.punch_hole(addr, PUNCH_HOLE_RETRIES).await?;
         let addr = &*addr.to_socket_addrs().unwrap().collect::<Vec<_>>();
         self.socket.bind(addr)
     }
@@ -94,61 +106,64 @@ impl StreamHandle {
 /// opened with any address of [`SocketAddr`][std::net::SocketAddr] type.
 pub(super) fn get_udp_stream<A: ToSocketAddrs>(
     addr: &A,
-    dur: Option<Duration>,
+    ttl: Option<u32>,
 ) -> Box<dyn IOStream + Sync + Send> {
-    Box::new(UdpStream::new(&*addr.to_socket_addrs().unwrap().collect::<Vec<_>>(), dur).unwrap())
+    Box::new(UdpStream::new(&*addr.to_socket_addrs().unwrap().collect::<Vec<_>>(), ttl).unwrap())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consts::{CONNECT_REQ, TEST_LOOPBACK_IP, TEST_MACHINE_IP, TEST_STRING};
+    use crate::consts::{TEST_LOOPBACK_IP, TEST_MACHINE_IP, TEST_STRING};
 
     use futures::executor::block_on;
     use std::net::SocketAddr;
-    use std::time::Duration;
+    use std::sync::Mutex;
+    use std::thread;
 
-    const DUR: Option<Duration> = Some(Duration::from_secs(1));
+    static TEST_MUTEX: Mutex<Option<bool>> = Mutex::new(None);
+
     const PORT_A: u16 = 34254;
     const PORT_B: u16 = 34250;
 
     #[test]
     fn stream_works() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
         let addr_a: SocketAddr = SocketAddr::new(TEST_MACHINE_IP, PORT_A);
         let addr_b: SocketAddr = SocketAddr::new(TEST_MACHINE_IP, PORT_B);
 
-        let stream_a = StreamHandle::new(&addr_a, DUR);
-        let stream_b = StreamHandle::new(&addr_b, DUR);
+        let stream_a = StreamHandle::new(&addr_a, None);
+        let stream_b = StreamHandle::new(&addr_b, None);
 
         let stream_a_pool = &[stream_b.pub_ip.unwrap(), (TEST_LOOPBACK_IP, PORT_B).into()][..];
         let stream_b_pool = &[stream_a.pub_ip.unwrap(), (TEST_LOOPBACK_IP, PORT_A).into()][..];
 
-        block_on(stream_a.bind(&stream_a_pool.last().unwrap())).unwrap();
-        block_on(stream_b.bind(&stream_b_pool.last().unwrap())).unwrap();
+        let f_a = stream_a.bind(stream_a_pool.last().unwrap());
+        let f_b = stream_b.bind(stream_b_pool.last().unwrap());
+
+        let (f_a, f_b) = thread::scope(|s| {
+            let t1 = s.spawn(|| block_on(f_a));
+            let t2 = s.spawn(|| block_on(f_b));
+
+            (t1.join().unwrap(), t2.join().unwrap())
+        });
+        // hole punching through NAT in `bind` works
+        assert!(f_a.is_ok());
+        assert!(f_b.is_ok());
 
         block_on(stream_b.push(TEST_STRING.as_ref())).unwrap();
         block_on(stream_a.push(TEST_STRING.as_ref())).unwrap();
         let res = block_on(stream_b.poll()).unwrap();
         // bound connection works
         assert_eq!(res.as_slice(), TEST_STRING.as_bytes());
-
-        block_on(stream_a.push_to(CONNECT_REQ, &stream_a_pool)).unwrap();
-        block_on(stream_b.push_to(CONNECT_REQ, &stream_b_pool)).unwrap();
-        let (res, addr) = loop {
-            block_on(stream_a.push_to(CONNECT_REQ, &stream_a_pool)).unwrap();
-            let res = block_on(stream_b.poll_at());
-            if let Ok(res) = res {
-                break res;
-            }
-        };
-        // NAT hole punching works
-        assert_eq!(res.as_slice(), CONNECT_REQ);
-        assert!(stream_b_pool.contains(&addr));
     }
 
     #[test]
     fn stun_works() {
-        let addr = &(TEST_MACHINE_IP, 0);
-        assert!(block_on(ice::query_stun(addr)).is_ok());
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        let stream = UdpStream::new(&[SocketAddr::new(TEST_MACHINE_IP, PORT_A)], None).unwrap();
+        assert!(stream.get_ip_stun().is_ok());
     }
 }
