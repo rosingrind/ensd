@@ -13,9 +13,9 @@ pub const P2P_REQ_TAG: &[u8] = b"p2p\0req\0";
 pub const PACKET_BUF_SIZE: usize = 256;
 pub const RESOURCES_PATH: &str = "res";
 pub const STUN_ADDRESS: &str = "stun.l.google.com:19302";
-pub const TRAVERSAL_TTL: u32 = 64;
-pub const TRAVERSAL_DUR: Option<Duration> = Some(Duration::from_millis(50));
-pub const TRAVERSAL_RETRIES: u8 = 10;
+pub const TRAVERSAL_MSG_TTL: u32 = 32;
+pub const TRAVERSAL_MSG_DUR: Option<Duration> = Some(Duration::from_millis(25));
+pub const TRAVERSAL_RETRIES: u16 = 1000;
 
 #[cfg(test)]
 pub const TEST_PHRASE: &str = "alpha test phrase";

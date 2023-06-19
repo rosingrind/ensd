@@ -154,8 +154,14 @@ fn main() {
         };
         (msg_remote, snd_remote)
     };
-    block_on(msg_stream.bind(&msg_remote)).unwrap();
-    block_on(snd_stream.bind(&snd_remote)).unwrap();
+
+    thread::scope(|s| {
+        let t1 = s.spawn(|| block_on(msg_stream.bind(&msg_remote)));
+        let t2 = s.spawn(|| block_on(snd_stream.bind(&snd_remote)));
+
+        t1.join().unwrap().unwrap();
+        t2.join().unwrap().unwrap();
+    });
 
     println!();
 
