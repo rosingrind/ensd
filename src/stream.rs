@@ -22,6 +22,10 @@ pub(super) trait IOStream {
 
     fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)>;
 
+    fn peek(&self) -> io::Result<Vec<u8>>;
+
+    fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)>;
+
     fn push(&self, buf: &[u8]) -> io::Result<()>;
 
     fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()>;
@@ -82,6 +86,14 @@ impl StreamHandle {
 
     pub async fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
         self.socket.poll_at()
+    }
+
+    pub async fn peek(&self) -> io::Result<Vec<u8>> {
+        self.socket.peek()
+    }
+
+    pub async fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+        self.socket.peek_at()
     }
 
     pub async fn push(&self, buf: &[u8]) -> io::Result<()> {

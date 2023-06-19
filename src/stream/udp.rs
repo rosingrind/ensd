@@ -72,6 +72,38 @@ impl IOStream for UdpStream {
         Ok((res[..res.len() - MSG_END_TAG.len()].to_vec(), addr))
     }
 
+    fn peek(&self) -> io::Result<Vec<u8>> {
+        let mut buf = [0; PACKET_BUF_SIZE];
+        let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
+
+        loop {
+            let len = self.socket.peek(&mut buf)?;
+            res.append(&mut buf[..len].to_vec());
+            let tail = &res[res.len() - MSG_END_TAG.len()..];
+
+            if tail == MSG_END_TAG {
+                break;
+            }
+        }
+        Ok(res[..res.len() - MSG_END_TAG.len()].to_vec())
+    }
+
+    fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+        let mut buf = [0; PACKET_BUF_SIZE];
+        let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
+
+        let addr = loop {
+            let (len, addr) = self.socket.peek_from(&mut buf)?;
+            res.append(&mut buf[..len].to_vec());
+            let tail = &res[res.len() - MSG_END_TAG.len()..];
+
+            if tail == MSG_END_TAG {
+                break addr;
+            }
+        };
+        Ok((res[..res.len() - MSG_END_TAG.len()].to_vec(), addr))
+    }
+
     fn push(&self, buf: &[u8]) -> io::Result<()> {
         for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_BUF_SIZE) {
             self.socket.send(buf)?;
