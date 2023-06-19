@@ -104,7 +104,7 @@ impl IOStream for UdpStream {
         self.socket.set_ttl(ttl)
     }
 
-    fn get_ip_stun(&self) -> StunResult<SocketAddr> {
+    fn get_ext_ip(&self) -> StunResult<SocketAddr> {
         trace!("querying STUN at '{}'", STUN_ADDRESS);
         let stun_addr = STUN_ADDRESS
             .to_socket_addrs()

@@ -1,4 +1,4 @@
-mod ice;
+mod p2p;
 mod udp;
 
 use log::{error, trace};
@@ -6,10 +6,9 @@ use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 
-use crate::stream::ice::ICE;
+use crate::consts::TRAVERSAL_RETRIES;
+use crate::stream::p2p::P2P;
 use crate::stream::udp::{StunResult, UdpStream};
-
-const PUNCH_HOLE_RETRIES: u8 = 10;
 
 /// `IOStream` trait for heterogeneous transport implementation.
 /// Assumes method implementations to [`connect`][IOStream::connect], [`poll`][IOStream::poll]
@@ -35,7 +34,7 @@ pub(super) trait IOStream {
 
     fn set_ttl(&self, ttl: u32) -> io::Result<()>;
 
-    fn get_ip_stun(&self) -> StunResult<SocketAddr>;
+    fn get_ext_ip(&self) -> StunResult<SocketAddr>;
 }
 
 pub(super) struct StreamHandle {
@@ -47,7 +46,7 @@ pub(super) struct StreamHandle {
 impl StreamHandle {
     pub fn new<A: ToSocketAddrs + Sync>(addr: &A, ttl: Option<u32>) -> StreamHandle {
         let socket = get_udp_stream(addr, ttl);
-        let pub_ip = match socket.get_ip_stun() {
+        let pub_ip = match socket.get_ext_ip() {
             Ok(ip) => {
                 trace!(
                     "socket on {:?} allocated with public address {:?}",
@@ -68,7 +67,7 @@ impl StreamHandle {
     }
 
     pub async fn bind<A: ToSocketAddrs + Sync>(&self, addr: &A) -> io::Result<()> {
-        self.punch_hole(addr, PUNCH_HOLE_RETRIES).await?;
+        self.try_nat_tr(addr, TRAVERSAL_RETRIES).await?;
         let addr = &*addr.to_socket_addrs().unwrap().collect::<Vec<_>>();
         self.socket.bind(addr)
     }
@@ -164,6 +163,6 @@ mod tests {
         let _guard = TEST_MUTEX.lock().unwrap();
 
         let stream = UdpStream::new(&[SocketAddr::new(TEST_MACHINE_IP, PORT_A)], None).unwrap();
-        assert!(stream.get_ip_stun().is_ok());
+        assert!(stream.get_ext_ip().is_ok());
     }
 }

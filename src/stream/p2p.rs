@@ -4,23 +4,23 @@ use std::io;
 use std::io::{Error, ErrorKind};
 use std::net::{SocketAddr, ToSocketAddrs};
 
-use crate::consts::{ICE_DUR, ICE_TTL, P2P_REQ_TAG};
+use crate::consts::{TRAVERSAL_DUR, TRAVERSAL_TTL, P2P_REQ_TAG};
 use crate::stream::StreamHandle;
 
 #[async_trait]
-pub(super) trait ICE {
-    async fn punch_hole<A: ToSocketAddrs + Sync>(&self, addr: &A, retries: u8) -> io::Result<()>;
+pub(super) trait P2P {
+    async fn try_nat_tr<A: ToSocketAddrs + Sync>(&self, addr: &A, retries: u8) -> io::Result<()>;
 }
 
 #[async_trait]
-impl ICE for StreamHandle {
-    async fn punch_hole<A: ToSocketAddrs + Sync>(&self, addr: &A, retries: u8) -> io::Result<()> {
+impl P2P for StreamHandle {
+    async fn try_nat_tr<A: ToSocketAddrs + Sync>(&self, addr: &A, retries: u8) -> io::Result<()> {
         let ttl = self.socket.get_ttl()?;
         let dur = self.socket.get_timeout()?;
-        self.socket.set_ttl(ICE_TTL)?;
-        self.socket.set_timeout(ICE_DUR)?;
+        self.socket.set_ttl(TRAVERSAL_TTL)?;
+        self.socket.set_timeout(TRAVERSAL_DUR)?;
         trace!(
-            "punching hole to {:?}",
+            "hole punching to {:?}",
             addr.to_socket_addrs()
                 .unwrap()
                 .map(|c| c as SocketAddr)
