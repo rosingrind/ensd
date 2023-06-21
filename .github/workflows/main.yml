@@ -1,0 +1,22 @@
+name: main
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+
+jobs:
+  CI:
+    uses: ./.github/workflows/ci.yml
+
+  test:
+    needs: CI
+    uses: ./.github/workflows/test.yml
+    with:
+      coverage: false # TODO: enable coverage
