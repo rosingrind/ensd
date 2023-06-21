@@ -204,10 +204,9 @@ mod tests {
     use aead::{consts::U24, Nonce, OsRng};
     use aes_gcm::AesGcm;
     use chacha20poly1305::ChaChaPoly1305;
-    use futures::executor::block_on;
 
-    #[test]
-    fn aes_works() {
+    #[async_std::test]
+    async fn aes_works() {
         let cipher = CipherHandle::new(
             &Encryption::AES {
                 cipher: AesSpec::default(),
@@ -215,52 +214,48 @@ mod tests {
             },
             OsRng,
         );
-        let res = block_on(
-            cipher.decrypt(
-                block_on(cipher.encrypt(TEST_STRING.as_ref()))
-                    .unwrap()
-                    .as_ref(),
-            ),
-        )
-        .unwrap();
+        let res = cipher
+            .decrypt(cipher.encrypt(TEST_STRING.as_ref()).await.unwrap().as_ref())
+            .await
+            .unwrap();
         assert_eq!(res.as_slice(), TEST_STRING.as_bytes());
 
-        let res = block_on(cipher.encrypt_at(
-            Nonce::<AesGcm<Aes256, U16>>::default().as_ref(),
-            &[],
-            &mut vec![0u8; 24],
-        ));
+        let res = cipher
+            .encrypt_at(
+                Nonce::<AesGcm<Aes256, U16>>::default().as_ref(),
+                &[],
+                &mut vec![0u8; 24],
+            )
+            .await;
         assert!(res.is_err());
     }
 
-    #[test]
-    fn cha_works() {
+    #[async_std::test]
+    async fn cha_works() {
         let cipher = CipherHandle::new(
             &Encryption::ChaCha {
                 cipher: ChaSpec::default(),
             },
             OsRng,
         );
-        let res = block_on(
-            cipher.decrypt(
-                block_on(cipher.encrypt(TEST_STRING.as_ref()))
-                    .unwrap()
-                    .as_ref(),
-            ),
-        )
-        .unwrap();
+        let res = cipher
+            .decrypt(cipher.encrypt(TEST_STRING.as_ref()).await.unwrap().as_ref())
+            .await
+            .unwrap();
         assert_eq!(res.as_slice(), TEST_STRING.as_bytes());
 
-        let res = block_on(cipher.encrypt_at(
-            Nonce::<ChaChaPoly1305<XChaCha20, U24>>::default().as_ref(),
-            &[],
-            &mut vec![0u8; 24],
-        ));
+        let res = cipher
+            .encrypt_at(
+                Nonce::<ChaChaPoly1305<XChaCha20, U24>>::default().as_ref(),
+                &[],
+                &mut vec![0u8; 24],
+            )
+            .await;
         assert!(res.is_err());
     }
 
-    #[test]
-    fn cipher_integrity() {
+    #[async_std::test]
+    async fn cipher_integrity() {
         let aes = CipherHandle::new(
             &Encryption::AES {
                 cipher: AesSpec::default(),
@@ -275,19 +270,19 @@ mod tests {
             OsRng,
         );
 
-        let aes_res = block_on(aes.encrypt(TEST_STRING.as_ref())).unwrap();
-        let cha_res = block_on(cha.encrypt(TEST_STRING.as_ref())).unwrap();
+        let aes_res = aes.encrypt(TEST_STRING.as_ref()).await.unwrap();
+        let cha_res = cha.encrypt(TEST_STRING.as_ref()).await.unwrap();
         // ciphers produce different output
         assert_ne!(aes_res, cha_res);
 
-        let cha_aes = block_on(cha.decrypt(aes_res.as_ref()));
-        let aes_cha = block_on(aes.decrypt(cha_res.as_ref()));
+        let cha_aes = cha.decrypt(aes_res.as_ref()).await;
+        let aes_cha = aes.decrypt(cha_res.as_ref()).await;
         // different ciphers can't decrypt each other
         assert!(cha_aes.is_err());
         assert!(aes_cha.is_err());
 
-        let aes_res = block_on(aes.decrypt(aes_res.as_ref())).unwrap();
-        let cha_res = block_on(cha.decrypt(cha_res.as_ref())).unwrap();
+        let aes_res = aes.decrypt(aes_res.as_ref()).await.unwrap();
+        let cha_res = cha.decrypt(cha_res.as_ref()).await.unwrap();
         // ciphers are operating on the same data
         assert_eq!(aes_res, cha_res);
     }

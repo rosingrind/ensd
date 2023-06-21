@@ -1,33 +1,51 @@
-use crate::consts::{MSG_END_TAG, PACKET_BUF_SIZE, STUN_ADDRESS};
+use async_std::{
+    net::{SocketAddr, ToSocketAddrs, UdpSocket},
+    prelude::FutureExt,
+};
+use async_trait::async_trait;
+use bytecodec::{DecodeExt, EncodeExt};
 use log::{info, trace};
+use rand::Rng;
 use std::io;
-use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
-use std::time::Duration;
-use stunclient::{Error as StunError, StunClient};
+use std::io::{Error, ErrorKind};
+use stun_codec::{
+    rfc5389::{
+        attributes::{MappedAddress, Software, XorMappedAddress},
+        methods::BINDING,
+        Attribute,
+    },
+    Message, MessageClass, MessageDecoder, MessageEncoder, TransactionId,
+};
 
+use crate::consts::{MSG_END_TAG, PACKET_BUF_SIZE, REQUEST_MSG_DUR, STUN_ADDRESS};
+use crate::stream::err::{ERR_CONNECTION, ERR_STUN_QUERY};
 use crate::stream::IOStream;
 
 pub(super) struct UdpStream {
     socket: UdpSocket,
+    sw_tag: Option<&'static str>,
 }
-
-pub(super) type StunResult<T> = Result<T, StunError>;
 
 impl UdpStream {
     #[allow(dead_code)]
-    pub fn new(addr: &[SocketAddr], ttl: Option<u32>) -> io::Result<UdpStream> {
-        let socket = UdpSocket::bind(addr)?;
+    pub async fn new(
+        addr: &[SocketAddr],
+        ttl: Option<u32>,
+        sw_tag: Option<&'static str>,
+    ) -> io::Result<UdpStream> {
+        let socket = UdpSocket::bind(addr).await?;
         if let Some(ttl) = ttl {
             socket.set_ttl(ttl)?;
         }
 
-        Ok(UdpStream { socket })
+        Ok(UdpStream { socket, sw_tag })
     }
 }
 
+#[async_trait]
 impl IOStream for UdpStream {
-    fn bind(&self, addr: &[SocketAddr]) -> io::Result<()> {
-        self.socket.connect(addr)?;
+    async fn bind(&self, addr: &[SocketAddr]) -> io::Result<()> {
+        self.socket.connect(addr).await?;
         info!(
             "UDP socket at :{} is connected to {:?}",
             self.socket.local_addr()?.port(),
@@ -36,16 +54,16 @@ impl IOStream for UdpStream {
         Ok(())
     }
 
-    fn peer(&self) -> io::Result<SocketAddr> {
+    async fn peer(&self) -> io::Result<SocketAddr> {
         self.socket.peer_addr()
     }
 
-    fn poll(&self) -> io::Result<Vec<u8>> {
+    async fn poll(&self) -> io::Result<Vec<u8>> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         loop {
-            let len = self.socket.recv(&mut buf)?;
+            let len = self.socket.recv(&mut buf).await?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -56,12 +74,12 @@ impl IOStream for UdpStream {
         Ok(res[..res.len() - MSG_END_TAG.len()].to_vec())
     }
 
-    fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+    async fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         let addr = loop {
-            let (len, addr) = self.socket.recv_from(&mut buf)?;
+            let (len, addr) = self.socket.recv_from(&mut buf).await?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -72,12 +90,12 @@ impl IOStream for UdpStream {
         Ok((res[..res.len() - MSG_END_TAG.len()].to_vec(), addr))
     }
 
-    fn peek(&self) -> io::Result<Vec<u8>> {
+    async fn peek(&self) -> io::Result<Vec<u8>> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         loop {
-            let len = self.socket.peek(&mut buf)?;
+            let len = self.socket.peek(&mut buf).await?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -88,12 +106,12 @@ impl IOStream for UdpStream {
         Ok(res[..res.len() - MSG_END_TAG.len()].to_vec())
     }
 
-    fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+    async fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         let addr = loop {
-            let (len, addr) = self.socket.peek_from(&mut buf)?;
+            let (len, addr) = self.socket.peek_from(&mut buf).await?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -104,47 +122,106 @@ impl IOStream for UdpStream {
         Ok((res[..res.len() - MSG_END_TAG.len()].to_vec(), addr))
     }
 
-    fn push(&self, buf: &[u8]) -> io::Result<()> {
+    async fn push(&self, buf: &[u8]) -> io::Result<()> {
         for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_BUF_SIZE) {
-            self.socket.send(buf)?;
+            self.socket.send(buf).await?;
         }
         Ok(())
     }
 
-    fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()> {
+    async fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()> {
         for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_BUF_SIZE) {
             for addr in addr {
-                self.socket.send_to(buf, addr)?;
+                self.socket.send_to(buf, addr).await?;
             }
         }
         Ok(())
     }
 
-    fn get_timeout(&self) -> io::Result<Option<Duration>> {
-        self.socket.read_timeout()
-    }
-
-    fn set_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.socket.set_read_timeout(dur)
-    }
-
-    fn get_ttl(&self) -> io::Result<u32> {
+    async fn get_ttl(&self) -> io::Result<u32> {
         self.socket.ttl()
     }
 
-    fn set_ttl(&self, ttl: u32) -> io::Result<()> {
+    async fn set_ttl(&self, ttl: u32) -> io::Result<()> {
         self.socket.set_ttl(ttl)
     }
 
-    fn get_ext_ip(&self) -> StunResult<SocketAddr> {
+    async fn get_ext_ip(&self, retries: u16) -> io::Result<SocketAddr> {
         trace!("querying STUN at '{}'", STUN_ADDRESS);
         let stun_addr = STUN_ADDRESS
             .to_socket_addrs()
-            .unwrap()
-            .find(|x| x.is_ipv4())
+            .await?
+            .find(|c| c.is_ipv4())
             .unwrap();
-        let c = StunClient::new(stun_addr);
 
-        c.query_external_address(&self.socket)
+        let msg = build_request(self.sw_tag)?;
+        let mut buf = [0u8; 256];
+        let mut iter = (0..retries).into_iter();
+
+        loop {
+            self.socket.send_to(msg.as_ref(), stun_addr).await?;
+            if let Ok(res) = self
+                .socket
+                .recv_from(&mut buf)
+                .timeout(REQUEST_MSG_DUR.unwrap())
+                .await
+            {
+                match res? {
+                    (len, addr) if addr == stun_addr => {
+                        let buf = &buf[0..len];
+                        let external_addr = decode_address(buf)?;
+                        return Ok(external_addr);
+                    }
+                    _ => {}
+                }
+                iter = (0..retries).into_iter();
+            }
+            if iter.next().is_none() {
+                break Err(ERR_CONNECTION.into());
+            }
+        }
     }
+}
+
+#[inline]
+fn build_request(software: Option<&str>) -> Result<Vec<u8>, Error> {
+    let random_bytes = rand::thread_rng().gen::<[u8; 12]>();
+
+    let mut message = Message::new(
+        MessageClass::Request,
+        BINDING,
+        TransactionId::new(random_bytes),
+    );
+
+    if let Some(s) = software {
+        message.add_attribute(Attribute::Software(
+            Software::new(s.to_owned()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
+        ));
+    }
+
+    let mut encoder = MessageEncoder::new();
+    let bytes = encoder
+        .encode_into_bytes(message.clone())
+        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+    Ok(bytes)
+}
+
+#[inline]
+fn decode_address(buf: &[u8]) -> Result<SocketAddr, Error> {
+    let mut decoder = MessageDecoder::<Attribute>::new();
+    let decoded = decoder
+        .decode_from_bytes(buf)
+        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?
+        .map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))?;
+
+    let external_addr1 = decoded
+        .get_attribute::<XorMappedAddress>()
+        .map(|x| x.address());
+    let external_addr3 = decoded
+        .get_attribute::<MappedAddress>()
+        .map(|x| x.address());
+
+    external_addr1
+        .or(external_addr3)
+        .ok_or_else(|| ERR_STUN_QUERY.into())
 }

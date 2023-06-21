@@ -12,10 +12,11 @@ pub const MSG_END_TAG: &[u8] = b"end\0msg\0";
 pub const P2P_REQ_TAG: &[u8] = b"p2p\0req\0";
 pub const PACKET_BUF_SIZE: usize = 256;
 pub const RESOURCES_PATH: &str = "res";
+pub const SOFTWARE_TAG: Option<&str> = Some("ensd");
 pub const STUN_ADDRESS: &str = "stun.l.google.com:19302";
-pub const TRAVERSAL_MSG_TTL: u32 = 32;
-pub const TRAVERSAL_MSG_DUR: Option<Duration> = Some(Duration::from_millis(25));
-pub const TRAVERSAL_RETRIES: u16 = 1000;
+pub const REQUEST_MSG_TTL: u32 = 32;
+pub const REQUEST_MSG_DUR: Option<Duration> = Some(Duration::from_millis(25));
+pub const REQUEST_RETRIES: u16 = 1000;
 
 #[cfg(test)]
 pub const TEST_PHRASE: &str = "alpha test phrase";

@@ -3,21 +3,32 @@ mod consts;
 mod stream;
 
 use aead::rand_core::SeedableRng;
+use async_std::{
+    net::{AddrParseError, IpAddr, SocketAddr},
+    task,
+};
 use consts::{RESOURCES_PATH, SINC_RING_SIZE};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, StreamConfig, SupportedBufferSize, SupportedStreamConfig};
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    BufferSize, StreamConfig, SupportedBufferSize, SupportedStreamConfig,
+};
 use dasp_interpolate::sinc::Sinc;
 use dasp_signal::{self as signal, Signal};
-use futures::executor::block_on;
+use futures::try_join;
 use log::{debug, error, info, trace};
 use log4rs;
 use serde::Deserialize;
-use std::net::{AddrParseError, IpAddr, SocketAddr};
-use std::sync::{mpsc, Arc};
-use std::{env, fs, io, io::Write, mem, path::Path, thread};
+use std::{
+    env, fs, io,
+    io::Write,
+    mem,
+    path::Path,
+    sync::{mpsc, Arc},
+    thread,
+};
 
 use crate::cipher::{AesNonce, AesSpec, AppRng, ChaSpec, CipherHandle};
-use crate::consts::{BLACK_SQUARE, CPAL_BUF_SIZE, TRANSPORT_SRATE, WHITE_SQUARE};
+use crate::consts::{BLACK_SQUARE, CPAL_BUF_SIZE, SOFTWARE_TAG, TRANSPORT_SRATE, WHITE_SQUARE};
 use crate::stream::StreamHandle;
 
 #[derive(Debug, Deserialize)]
@@ -86,7 +97,8 @@ fn request_named_remote(name: &str) -> Result<SocketAddr, AddrParseError> {
     phrase.trim().parse()
 }
 
-fn main() {
+#[async_std::main]
+async fn main() {
     let path = Path::new(RESOURCES_PATH).join("log.toml");
     log4rs::init_file(path, Default::default()).unwrap();
 
@@ -118,8 +130,8 @@ fn main() {
     let msg_addr = SocketAddr::new(conf.msg_addr.ip, conf.msg_addr.port);
     let snd_addr = SocketAddr::new(conf.snd_addr.ip, conf.snd_addr.port);
 
-    let msg_stream = Arc::new(StreamHandle::new(&msg_addr, None));
-    let snd_stream = Arc::new(StreamHandle::new(&snd_addr, None));
+    let msg_stream = Arc::new(StreamHandle::new(&msg_addr, None, SOFTWARE_TAG).await);
+    let snd_stream = Arc::new(StreamHandle::new(&snd_addr, None, SOFTWARE_TAG).await);
 
     info!(
         "socket 'msg' at :{} extern address: {:?}",
@@ -155,13 +167,7 @@ fn main() {
         (msg_remote, snd_remote)
     };
 
-    thread::scope(|s| {
-        let t1 = s.spawn(|| block_on(msg_stream.bind(&msg_remote)));
-        let t2 = s.spawn(|| block_on(snd_stream.bind(&snd_remote)));
-
-        t1.join().unwrap().unwrap();
-        t2.join().unwrap().unwrap();
-    });
+    try_join!(msg_stream.bind(&msg_remote), snd_stream.bind(&snd_remote)).unwrap();
 
     println!();
 
@@ -194,9 +200,14 @@ fn main() {
                 .collect::<Vec<_>>()
                 .concat();
 
-            if block_on(snd_put.push(block_on(io_cipher.encrypt(res.as_ref())).unwrap().as_ref()))
-                .is_err()
-            {
+            let res = task::block_on(async {
+                // FIXME
+                snd_put
+                    .push(io_cipher.encrypt(res.as_ref()).await.unwrap().as_ref())
+                    .await
+            });
+
+            if res.is_err() {
                 error!("failed to push packets with audio data");
                 continue;
             }
@@ -228,7 +239,13 @@ fn main() {
         let io_cipher = cipher.clone();
         let snd_get = snd_stream.clone();
         thread::spawn(move || loop {
-            let buf = block_on(io_cipher.decrypt(block_on(snd_get.poll()).unwrap().as_ref()));
+            let res = task::block_on(async {
+                // FIXME
+                io_cipher
+                    .decrypt(snd_get.poll().await.unwrap().as_ref())
+                    .await
+            });
+            let buf = res;
             if buf.is_err() {
                 error!("failed to decrypt packets with audio data");
                 continue;
@@ -299,15 +316,19 @@ fn main() {
         drop(out);
         io::stdin().read_line(&mut buf).unwrap();
 
-        if block_on(
-            msg_put.push(
-                block_on(cipher_a.encrypt(buf.trim().as_ref()))
-                    .unwrap()
-                    .as_slice(),
-            ),
-        )
-        .is_err()
-        {
+        let res = task::block_on(async {
+            // FIXME
+            msg_put
+                .push(
+                    cipher_a
+                        .encrypt(buf.trim().as_ref())
+                        .await
+                        .unwrap()
+                        .as_slice(),
+                )
+                .await
+        });
+        if res.is_err() {
             error!("failed to push packets with text data");
             continue;
         }
@@ -317,7 +338,7 @@ fn main() {
     let prompt_b = prompt.clone();
     let msg_get = msg_stream.clone();
     thread::spawn(move || loop {
-        let buf = block_on(msg_get.poll()).unwrap();
+        let buf = task::block_on(msg_get.poll()).unwrap();
         let mut out = io::stdout().lock();
         trace!("RX-CRYPT*: '{:?}'", buf);
         let deletion = prompt_b.chars().map(|_| '\u{8}').collect::<String>();
@@ -326,7 +347,7 @@ fn main() {
         out.write(
             format!(
                 "[{BLACK_SQUARE}] RX: '{}'\n",
-                String::from_utf8(block_on(cipher_b.decrypt(buf.as_ref())).unwrap()).unwrap()
+                String::from_utf8(task::block_on(cipher_b.decrypt(buf.as_ref())).unwrap()).unwrap()
             )
             .as_ref(),
         )

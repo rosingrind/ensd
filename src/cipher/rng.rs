@@ -81,7 +81,6 @@ mod tests {
         rand_core::{block::BlockRng, RngCore},
         OsRng,
     };
-    use futures::executor::block_on;
 
     #[test]
     fn seeding_works() {
@@ -95,8 +94,8 @@ mod tests {
         assert_eq!(buf, [0; 16]);
     }
 
-    #[test]
-    fn seeding_same() {
+    #[async_std::test]
+    async fn seeding_same() {
         let aes_a = CipherHandle::new(
             &Encryption::AES {
                 cipher: AesSpec::default(),
@@ -112,18 +111,18 @@ mod tests {
             BlockRng::<AppRngCore>::from_seed(TEST_PHRASE.into()),
         );
 
-        let txt_a = block_on(aes_a.encrypt(TEST_STRING.as_ref())).unwrap();
-        let txt_b = block_on(aes_b.encrypt(TEST_STRING.as_ref())).unwrap();
+        let txt_a = aes_a.encrypt(TEST_STRING.as_ref()).await.unwrap();
+        let txt_b = aes_b.encrypt(TEST_STRING.as_ref()).await.unwrap();
 
-        let res_a = block_on(aes_a.decrypt(txt_b.as_ref()));
-        let res_b = block_on(aes_b.decrypt(txt_a.as_ref()));
+        let res_a = aes_a.decrypt(txt_b.as_ref()).await;
+        let res_b = aes_b.decrypt(txt_a.as_ref()).await;
         // ciphers with same seeds may be interchanged
         assert!(res_a.is_ok());
         assert!(res_b.is_ok());
     }
 
-    #[test]
-    fn seeding_diff() {
+    #[async_std::test]
+    async fn seeding_diff() {
         let aes_a = CipherHandle::new(
             &Encryption::AES {
                 cipher: AesSpec::default(),
@@ -139,11 +138,11 @@ mod tests {
             OsRng,
         );
 
-        let txt_a = block_on(aes_a.encrypt(TEST_STRING.as_ref())).unwrap();
-        let txt_b = block_on(aes_b.encrypt(TEST_STRING.as_ref())).unwrap();
+        let txt_a = aes_a.encrypt(TEST_STRING.as_ref()).await.unwrap();
+        let txt_b = aes_b.encrypt(TEST_STRING.as_ref()).await.unwrap();
 
-        let res_a = block_on(aes_a.decrypt(txt_b.as_ref()));
-        let res_b = block_on(aes_b.decrypt(txt_a.as_ref()));
+        let res_a = aes_a.decrypt(txt_b.as_ref()).await;
+        let res_b = aes_b.decrypt(txt_a.as_ref()).await;
         // ciphers with diff seeds can't be interchanged
         assert!(res_a.is_err());
         assert!(res_b.is_err());
