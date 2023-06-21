@@ -211,6 +211,7 @@ async fn main() {
                 error!("failed to push packets with audio data");
                 continue;
             }
+            task::spawn(async { log::logger().flush() });
         })
     };
 
@@ -273,6 +274,7 @@ async fn main() {
                 .collect::<Vec<_>>();
 
             tx.send(res).unwrap();
+            task::spawn(async { log::logger().flush() });
         })
     };
 
