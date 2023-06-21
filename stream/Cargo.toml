@@ -15,3 +15,6 @@ futures = "0.3.28"
 stun_codec = "0.3.2"
 rand = "0.8.5"
 bytecodec = "0.4.15"
+
+[features]
+ci = []

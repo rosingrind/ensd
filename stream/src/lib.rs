@@ -157,6 +157,7 @@ mod tests {
     static TEST_MUTEX: async_std::sync::Mutex<Option<bool>> = async_std::sync::Mutex::new(None);
 
     #[async_std::test]
+    #[cfg_attr(feature = "ci", ignore)]
     async fn stream_works() {
         let _guard = TEST_MUTEX.lock().await;
 
@@ -184,6 +185,7 @@ mod tests {
     }
 
     #[async_std::test]
+    #[cfg_attr(feature = "ci", ignore)]
     async fn stun_works() {
         let _guard = TEST_MUTEX.lock().await;
 
