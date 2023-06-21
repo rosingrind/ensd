@@ -144,7 +144,6 @@ mod tests {
     use super::*;
     use crate::consts::{SOFTWARE_TAG, TEST_LOOPBACK_IP, TEST_MACHINE_IP, TEST_STRING};
 
-    use futures::try_join;
     use std::sync::Mutex;
 
     static TEST_MUTEX: Mutex<Option<bool>> = Mutex::new(None);
@@ -165,11 +164,11 @@ mod tests {
         let addr_a = SocketAddr::new(TEST_LOOPBACK_IP, PORT_B);
         let addr_b = SocketAddr::new(TEST_LOOPBACK_IP, PORT_A);
 
-        let handle = try_join!(stream_a.bind(&addr_a), stream_b.bind(&addr_b));
+        let handle = futures::try_join!(stream_a.bind(&addr_a), stream_b.bind(&addr_b));
         // hole punching through NAT in `bind` works
         assert!(handle.is_ok());
 
-        let handle = try_join!(
+        let handle = futures::try_join!(
             stream_a.push(TEST_STRING.as_ref()),
             stream_b.push(TEST_STRING.as_ref())
         );

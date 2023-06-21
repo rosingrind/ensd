@@ -1,6 +1,6 @@
 use async_std::{
+    future,
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
-    prelude::FutureExt,
 };
 use async_trait::async_trait;
 use bytecodec::{DecodeExt, EncodeExt};
@@ -160,11 +160,8 @@ impl IOStream for UdpStream {
 
         loop {
             self.socket.send_to(msg.as_ref(), stun_addr).await?;
-            if let Ok(res) = self
-                .socket
-                .recv_from(&mut buf)
-                .timeout(REQUEST_MSG_DUR.unwrap())
-                .await
+            if let Ok(res) =
+                future::timeout(REQUEST_MSG_DUR.unwrap(), self.socket.recv_from(&mut buf)).await
             {
                 match res? {
                     (len, addr) if addr == stun_addr => {

@@ -1,5 +1,7 @@
-use async_std::net::{SocketAddr, ToSocketAddrs};
-use async_std::prelude::FutureExt;
+use async_std::{
+    future,
+    net::{SocketAddr, ToSocketAddrs},
+};
 use async_trait::async_trait;
 use log::{trace, warn};
 use std::io;
@@ -78,7 +80,7 @@ impl P2P for StreamHandle {
 
         let res = match res {
             Ok(_) => loop {
-                let res = self.peek_at().timeout(REQUEST_MSG_DUR.unwrap()).await;
+                let res = future::timeout(REQUEST_MSG_DUR.unwrap(), self.peek_at()).await;
                 if res.is_err() {
                     break Ok(());
                 }

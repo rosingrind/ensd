@@ -4,7 +4,9 @@ mod stream;
 
 use aead::rand_core::SeedableRng;
 use async_std::{
+    fs,
     net::{AddrParseError, IpAddr, SocketAddr},
+    path::Path,
     task,
 };
 use consts::{RESOURCES_PATH, SINC_RING_SIZE};
@@ -14,15 +16,13 @@ use cpal::{
 };
 use dasp_interpolate::sinc::Sinc;
 use dasp_signal::{self as signal, Signal};
-use futures::try_join;
 use log::{debug, error, info, trace};
 use log4rs;
 use serde::Deserialize;
 use std::{
-    env, fs, io,
+    env, io,
     io::Write,
     mem,
-    path::Path,
     sync::{mpsc, Arc},
     thread,
 };
@@ -118,7 +118,7 @@ async fn main() {
     debug!("out: {:?}", out_cfg);
 
     let path = Path::new(RESOURCES_PATH).join("cfg.toml");
-    let conf = toml::from_str::<Config>(&*fs::read_to_string(path).unwrap()).unwrap();
+    let conf = toml::from_str::<Config>(&*fs::read_to_string(path).await.unwrap()).unwrap();
 
     debug!("{:?}", conf.encryption);
 
@@ -167,7 +167,7 @@ async fn main() {
         (msg_remote, snd_remote)
     };
 
-    try_join!(msg_stream.bind(&msg_remote), snd_stream.bind(&snd_remote)).unwrap();
+    futures::try_join!(msg_stream.bind(&msg_remote), snd_stream.bind(&snd_remote)).unwrap();
 
     println!();
 
@@ -365,15 +365,14 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::path::Path;
+    use async_std::{fs, path::Path};
 
     use crate::consts::RESOURCES_PATH;
     use crate::Config;
 
-    #[test]
-    fn config_is_valid() {
+    #[async_std::test]
+    async fn config_is_valid() {
         let path = Path::new(RESOURCES_PATH).join("cfg.toml");
-        toml::from_str::<Config>(&*fs::read_to_string(path).unwrap()).unwrap();
+        toml::from_str::<Config>(&*fs::read_to_string(path).await.unwrap()).unwrap();
     }
 }

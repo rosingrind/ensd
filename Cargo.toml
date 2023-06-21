@@ -18,7 +18,7 @@ toml = "0.7.4"
 aead = "0.5.2"
 sha2 = "0.10.6"
 log = "0.4.19"
-async-std = { version = "1.12.0", features = ["attributes", "unstable"] }
+async-std = { version = "1.12.0", features = ["attributes"] }
 futures = "0.3.28"
 async-trait = "0.1.68"
 stun_codec = "0.3.2"
