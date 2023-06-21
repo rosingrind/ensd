@@ -1,18 +1,14 @@
-mod cipher;
-mod consts;
-mod stream;
-
-use aead::rand_core::SeedableRng;
+use ::cipher::{AppRng, CipherHandle, Encryption, SeedableRng};
+use ::stream::StreamHandle;
 use async_std::{
     fs,
     net::{AddrParseError, IpAddr, SocketAddr},
     path::Path,
     task,
 };
-use consts::{RESOURCES_PATH, SINC_RING_SIZE};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    BufferSize, StreamConfig, SupportedBufferSize, SupportedStreamConfig,
+    BufferSize, FrameCount, StreamConfig, SupportedBufferSize, SupportedStreamConfig,
 };
 use dasp_interpolate::sinc::Sinc;
 use dasp_signal::{self as signal, Signal};
@@ -27,9 +23,14 @@ use std::{
     thread,
 };
 
-use crate::cipher::{AesNonce, AesSpec, AppRng, ChaSpec, CipherHandle};
-use crate::consts::{BLACK_SQUARE, CPAL_BUF_SIZE, SOFTWARE_TAG, TRANSPORT_SRATE, WHITE_SQUARE};
-use crate::stream::StreamHandle;
+const RESOURCES_PATH: &str = "res";
+const SINC_RING_SIZE: usize = 2;
+const WHITE_SQUARE: char = '\u{25A0}';
+const BLACK_SQUARE: char = '\u{25A1}';
+const PACKET_BUF_SIZE: usize = 256;
+const CPAL_BUF_SIZE: FrameCount = (PACKET_BUF_SIZE * 8) as FrameCount;
+const SOFTWARE_TAG: Option<&str> = Some("ensd");
+const TRANSPORT_SRATE: u64 = 32000;
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -42,21 +43,6 @@ struct Config {
 struct UDP {
     ip: IpAddr,
     port: u16,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum Encryption {
-    AES {
-        #[serde(default)]
-        cipher: AesSpec,
-        #[serde(default)]
-        nonce: AesNonce,
-    },
-    ChaCha {
-        #[serde(default)]
-        cipher: ChaSpec,
-    },
 }
 
 // FIXME: terminate CPAL as it's NOT allocating required buf size
@@ -148,8 +134,8 @@ async fn main() {
     let arg_mode = args.get(1).map(|c| c.trim());
 
     let (msg_remote, snd_remote) = if let Some("loopback") = arg_mode {
-        let msg_remote = "127.0.0.1:34254".parse().unwrap();
-        let snd_remote = "127.0.0.1:34054".parse().unwrap();
+        let msg_remote = "127.0.0.1:34254".parse().unwrap(); // FIXME
+        let snd_remote = "127.0.0.1:34054".parse().unwrap(); // FIXME
         (msg_remote, snd_remote)
     } else {
         let msg_remote = loop {
@@ -365,10 +351,7 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use async_std::{fs, path::Path};
-
-    use crate::consts::RESOURCES_PATH;
-    use crate::Config;
+    use super::*;
 
     #[async_std::test]
     async fn config_is_valid() {

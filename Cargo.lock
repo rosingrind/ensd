@@ -19,7 +19,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "433cfd6710c9986c576a25ca913c39d66a6474107b406f34f91d4a8923395241"
 dependencies = [
  "cfg-if",
- "cipher",
+ "cipher 0.4.4",
  "cpufeatures",
 ]
 
@@ -31,7 +31,7 @@ checksum = "209b47e8954a928e1d72e86eca7000ebb6655fe1436d33eefc2201cad027e237"
 dependencies = [
  "aead",
  "aes",
- "cipher",
+ "cipher 0.4.4",
  "ctr",
  "ghash",
  "subtle",
@@ -336,7 +336,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
 dependencies = [
  "cfg-if",
- "cipher",
+ "cipher 0.4.4",
  "cpufeatures",
 ]
 
@@ -348,7 +348,7 @@ checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
 dependencies = [
  "aead",
  "chacha20",
- "cipher",
+ "cipher 0.4.4",
  "poly1305",
  "zeroize",
 ]
@@ -366,6 +366,21 @@ dependencies = [
  "time",
  "wasm-bindgen",
  "winapi",
+]
+
+[[package]]
+name = "cipher"
+version = "0.1.0"
+dependencies = [
+ "aead",
+ "aes",
+ "aes-gcm",
+ "async-std",
+ "chacha20",
+ "chacha20poly1305",
+ "log",
+ "serde",
+ "sha2",
 ]
 
 [[package]]
@@ -516,7 +531,7 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0369ee1ad671834580515889b80f2ea915f23b8be8d0daa4bbaf2ac5c7590835"
 dependencies = [
- "cipher",
+ "cipher 0.4.4",
 ]
 
 [[package]]
@@ -641,24 +656,17 @@ dependencies = [
 name = "ensd"
 version = "0.1.0"
 dependencies = [
- "aead",
- "aes",
- "aes-gcm",
  "async-std",
  "async-trait",
- "bytecodec",
- "chacha20",
- "chacha20poly1305",
+ "cipher 0.1.0",
  "cpal",
  "dasp_interpolate",
  "dasp_signal",
  "futures",
  "log",
  "log4rs",
- "rand",
  "serde",
- "sha2",
- "stun_codec",
+ "stream",
  "toml 0.7.4",
 ]
 
@@ -1569,6 +1577,19 @@ checksum = "64a4a911eed85daf18834cfaa86a79b7d266ff93ff5ba14005426219480ed662"
 dependencies = [
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "stream"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "async-trait",
+ "bytecodec",
+ "futures",
+ "log",
+ "rand",
+ "stun_codec",
 ]
 
 [[package]]

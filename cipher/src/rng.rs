@@ -1,6 +1,7 @@
-use aead::rand_core::block::BlockRngCore;
-use aead::rand_core::{CryptoRng, SeedableRng};
+use aead::rand_core::{block::BlockRngCore, CryptoRng};
 use sha2::{Digest, Sha256};
+
+pub use aead::rand_core::SeedableRng;
 
 const N: usize = 32;
 type SeedArray = [u8; N];
@@ -73,14 +74,16 @@ impl SeedableRng for AppRngCore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cipher::{AesNonce, AesSpec, CipherHandle};
-    use crate::consts::{TEST_PHRASE, TEST_STRING};
     use crate::Encryption;
+    use crate::{AesNonce, AesSpec, CipherHandle};
 
     use aead::{
         rand_core::{block::BlockRng, RngCore},
         OsRng,
     };
+
+    const TEST_PHRASE: &str = "alpha test phrase";
+    const TEST_STRING: &str = "alpha test string";
 
     #[test]
     fn seeding_works() {

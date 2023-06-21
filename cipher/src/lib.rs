@@ -6,24 +6,40 @@ use ::aes::{Aes128, Aes192, Aes256};
 use ::cha::{cipher::KeyIvInit, ChaCha20, XChaCha20};
 use aead::{
     consts::{U12, U13, U14, U15, U16},
-    rand_core::{block::BlockRng, CryptoRng, RngCore, SeedableRng},
+    rand_core::{block::BlockRng, CryptoRng, RngCore},
     Result,
 };
 use serde::Deserialize;
 
-use crate::cipher::aes::AesCipher;
-use crate::cipher::cha::ChaCipher;
-use crate::cipher::rng::AppRngCore;
-use crate::Encryption;
+use crate::aes::AesCipher;
+use crate::cha::ChaCipher;
+use crate::rng::AppRngCore;
+
+pub use crate::rng::SeedableRng;
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum Encryption {
+    AES {
+        #[serde(default)]
+        cipher: AesSpec,
+        #[serde(default)]
+        nonce: AesNonce,
+    },
+    ChaCha {
+        #[serde(default)]
+        cipher: ChaSpec,
+    },
+}
 
 #[allow(dead_code)]
-pub(super) type AppRng = BlockRng<AppRngCore>;
+pub type AppRng = BlockRng<AppRngCore>;
 
 /// `AesSpec` for `.toml` config parsing.
 /// Offers [`Aes128`][Aes128], [`Aes192`][Aes192] and [`Aes256`][Aes256] block ciphers
 /// with [`Aes128`][AesSpec::default] being default choice.
 #[derive(Debug, Deserialize, Copy, Clone)]
-pub(super) enum AesSpec {
+pub enum AesSpec {
     Aes128,
     Aes192,
     Aes256,
@@ -33,7 +49,7 @@ pub(super) enum AesSpec {
 /// Offers [`ChaCha20`][ChaCha20] and [`XChaCha20`][XChaCha20] block ciphers with
 /// [`ChaCha20`][ChaSpec::default] being default choice.
 #[derive(Debug, Deserialize, Copy, Clone)]
-pub(super) enum ChaSpec {
+pub enum ChaSpec {
     ChaCha20,
     XChaCha20,
 }
@@ -56,7 +72,7 @@ impl Default for ChaSpec {
 ///
 /// See [`get_aes_cipher`][get_aes_cipher] for details about recommended `AesNonce` values.
 #[derive(Debug, Deserialize, Copy, Clone)]
-pub(super) enum AesNonce {
+pub enum AesNonce {
     U12,
     U13,
     U14,
@@ -73,7 +89,7 @@ impl Default for AesNonce {
 /// `IOCipher` trait for heterogeneous encryption implementation.
 /// Assumes method implementations to [`encrypt`][IOCipher::encrypt] and
 /// [`decrypt`][IOCipher::decrypt] data.
-pub(super) trait IOCipher {
+pub trait IOCipher {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>>;
 
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()>;
@@ -83,7 +99,7 @@ pub(super) trait IOCipher {
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()>;
 }
 
-pub(super) struct CipherHandle {
+pub struct CipherHandle {
     cipher: Box<dyn IOCipher + Sync + Send>,
 }
 
@@ -134,7 +150,7 @@ impl CipherHandle {
 ///
 /// Current cipher implementation allows [`Aes128`][Aes128], [`Aes192`][Aes192] and
 /// [`Aes256`][Aes256] block ciphers.
-pub(super) fn get_aes_cipher(
+pub fn get_aes_cipher(
     cipher: &AesSpec,
     nonce: &AesNonce,
     rng: impl CryptoRng + RngCore,
@@ -181,7 +197,7 @@ pub(super) fn get_aes_cipher(
 ///
 /// Current cipher implementation allows [`ChaCha20`][ChaCha20] and [`XChaCha20`][XChaCha20]
 /// block ciphers.
-pub(super) fn get_cha_cipher(
+pub fn get_cha_cipher(
     cipher: &ChaSpec,
     rng: impl CryptoRng + RngCore,
 ) -> Box<dyn IOCipher + Sync + Send> {
@@ -199,11 +215,12 @@ pub(super) fn get_cha_cipher(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consts::TEST_STRING;
 
     use aead::{consts::U24, Nonce, OsRng};
     use aes_gcm::AesGcm;
     use chacha20poly1305::ChaChaPoly1305;
+
+    const TEST_STRING: &str = "alpha test string";
 
     #[async_std::test]
     async fn aes_works() {

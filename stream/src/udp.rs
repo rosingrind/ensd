@@ -17,9 +17,13 @@ use stun_codec::{
     Message, MessageClass, MessageDecoder, MessageEncoder, TransactionId,
 };
 
-use crate::consts::{MSG_END_TAG, PACKET_BUF_SIZE, REQUEST_MSG_DUR, STUN_ADDRESS};
-use crate::stream::err::{ERR_CONNECTION, ERR_STUN_QUERY};
-use crate::stream::IOStream;
+use crate::err::{ERR_CONNECTION, ERR_STUN_QUERY};
+use crate::IOStream;
+use crate::REQUEST_MSG_DUR;
+
+pub const MSG_END_TAG: &[u8] = b"end\0msg\0";
+pub const PACKET_BUF_SIZE: usize = 256;
+pub const STUN_ADDRESS: &str = "stun.l.google.com:19302";
 
 pub(super) struct UdpStream {
     socket: UdpSocket,

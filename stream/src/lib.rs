@@ -6,16 +6,19 @@ use async_std::net::{SocketAddr, ToSocketAddrs};
 use async_trait::async_trait;
 use log::{error, trace};
 use std::io;
+use std::time::Duration;
 
-use crate::consts::REQUEST_RETRIES;
-use crate::stream::p2p::P2P;
-use crate::stream::udp::UdpStream;
+use crate::p2p::P2P;
+use crate::udp::UdpStream;
+
+const REQUEST_RETRIES: u16 = 1000;
+const REQUEST_MSG_DUR: Option<Duration> = Some(Duration::from_millis(25));
 
 /// `IOStream` trait for heterogeneous transport implementation.
 /// Assumes method implementations to [`connect`][IOStream::connect], [`poll`][IOStream::poll]
 /// and [`push`][IOStream::push] data through channel.
 #[async_trait]
-pub(super) trait IOStream {
+pub trait IOStream {
     async fn bind(&self, addr: &[SocketAddr]) -> io::Result<()>;
 
     async fn peer(&self) -> io::Result<SocketAddr>;
@@ -39,7 +42,7 @@ pub(super) trait IOStream {
     async fn get_ext_ip(&self, retries: u16) -> io::Result<SocketAddr>;
 }
 
-pub(super) struct StreamHandle {
+pub struct StreamHandle {
     socket: Box<dyn IOStream + Sync + Send>,
     pub pub_ip: Option<SocketAddr>,
 }
@@ -123,7 +126,7 @@ impl StreamHandle {
 ///
 /// Current implementation relies on `UDP`'s [`UdpSocket`][std::net::UdpSocket]
 /// opened with any address of [`SocketAddr`][std::net::SocketAddr] type.
-pub(super) async fn get_udp_stream<A: ToSocketAddrs>(
+pub async fn get_udp_stream<A: ToSocketAddrs>(
     addr: &A,
     ttl: Option<u32>,
     sw_tag: Option<&'static str>,
@@ -142,24 +145,27 @@ pub(super) async fn get_udp_stream<A: ToSocketAddrs>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consts::{SOFTWARE_TAG, TEST_LOOPBACK_IP, TEST_MACHINE_IP, TEST_STRING};
 
-    use std::sync::Mutex;
+    use async_std::net::{IpAddr, Ipv4Addr};
+    use async_std::sync::Mutex;
 
     static TEST_MUTEX: Mutex<Option<bool>> = Mutex::new(None);
 
+    const TEST_STRING: &str = "alpha test string";
+    const TEST_LOOPBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+    const TEST_MACHINE_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
     const PORT_A: u16 = 34254;
     const PORT_B: u16 = 34250;
 
     #[async_std::test]
     async fn stream_works() {
-        let _guard = TEST_MUTEX.lock().unwrap();
+        let _guard = TEST_MUTEX.lock().await;
 
         let addr_a = SocketAddr::new(TEST_MACHINE_IP, PORT_A);
         let addr_b = SocketAddr::new(TEST_MACHINE_IP, PORT_B);
 
-        let stream_a = StreamHandle::new(&addr_a, None, SOFTWARE_TAG).await;
-        let stream_b = StreamHandle::new(&addr_b, None, SOFTWARE_TAG).await;
+        let stream_a = StreamHandle::new(&addr_a, None, None).await;
+        let stream_b = StreamHandle::new(&addr_b, None, None).await;
 
         let addr_a = SocketAddr::new(TEST_LOOPBACK_IP, PORT_B);
         let addr_b = SocketAddr::new(TEST_LOOPBACK_IP, PORT_A);
@@ -180,12 +186,12 @@ mod tests {
 
     #[async_std::test]
     async fn stun_works() {
-        let _guard = TEST_MUTEX.lock().unwrap();
+        let _guard = TEST_MUTEX.lock().await;
 
         let stream = UdpStream::new(
             &[SocketAddr::new(TEST_MACHINE_IP, PORT_A)],
             None,
-            SOFTWARE_TAG,
+            None,
         )
         .await
         .unwrap();

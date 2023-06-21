@@ -1,41 +1,45 @@
 use aead::{
-    consts::U32, generic_array::ArrayLength, Aead, AeadInPlace, Error, Key, Nonce, OsRng, Result,
+    consts::U16, generic_array::ArrayLength, Aead, AeadCore, AeadInPlace, Error, Nonce, OsRng,
+    Result,
 };
-use cha::cipher::{KeyInit, KeyIvInit, StreamCipher, StreamCipherSeek};
-use chacha20poly1305::{AeadCore, ChaChaPoly1305};
+use aes::{
+    cipher::{BlockCipher, BlockEncrypt, BlockSizeUser, KeyInit},
+    Aes128, Aes192, Aes256,
+};
+use aes_gcm::{AesGcm, Key};
 use log::error;
 
-use crate::cipher::IOCipher;
+use crate::IOCipher;
 
-pub(super) struct ChaCipher<C, N>
+pub(super) struct AesCipher<T, U>
 where
-    C: KeyIvInit<KeySize = U32, IvSize = N> + StreamCipher + StreamCipherSeek,
-    N: ArrayLength<u8>,
+    T: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
+    U: ArrayLength<u8>,
 {
-    cipher: ChaChaPoly1305<C, N>,
+    cipher: AesGcm<T, U>,
 }
 
-impl<C, N> ChaCipher<C, N>
+impl<T, U> AesCipher<T, U>
 where
-    C: KeyIvInit<KeySize = U32, IvSize = N> + StreamCipher + StreamCipherSeek,
-    N: ArrayLength<u8>,
+    T: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt + KeyInit,
+    U: ArrayLength<u8>,
 {
     #[allow(dead_code)]
-    fn new(key: Key<C>) -> ChaCipher<C, N>
+    fn new(key: Key<T>) -> AesCipher<T, U>
     where
-        Key<C>: Into<ChaCipher<C, N>>,
+        Key<T>: Into<AesCipher<T, U>>,
     {
         key.into()
     }
 }
 
-impl<C, N> IOCipher for ChaCipher<C, N>
+impl<T, U> IOCipher for AesCipher<T, U>
 where
-    C: KeyIvInit<KeySize = U32, IvSize = N> + StreamCipher + StreamCipherSeek,
-    N: ArrayLength<u8>,
+    T: BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
+    U: ArrayLength<u8>,
 {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        let nonce = &ChaChaPoly1305::<C, N>::generate_nonce(&mut OsRng);
+        let nonce = &AesGcm::<T, U>::generate_nonce(&mut OsRng);
         Ok([
             nonce.as_ref(),
             self.cipher.encrypt(nonce, plaintext)?.as_ref(),
@@ -44,7 +48,7 @@ where
     }
 
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
-        let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
+        let spec = Nonce::<AesGcm<T, U>>::default().len();
         if nonce.len() == spec {
             self.cipher
                 .encrypt_in_place(nonce.into(), associated_data, buffer)
@@ -59,7 +63,7 @@ where
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
+        let spec = Nonce::<AesGcm<T, U>>::default().len();
         if spec > ciphertext.len() {
             error!(
                 "'decrypt' error: nonce size '{}' is bigger than 'ciphertext.len()':'{}'",
@@ -76,7 +80,7 @@ where
     }
 
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
-        let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
+        let spec = Nonce::<AesGcm<T, U>>::default().len();
         if nonce.len() == spec {
             self.cipher
                 .decrypt_in_place(nonce.into(), associated_data, buffer)
@@ -91,14 +95,26 @@ where
     }
 }
 
-impl<C, N> From<Key<C>> for ChaCipher<C, N>
-where
-    C: KeyIvInit<KeySize = U32, IvSize = N> + StreamCipher + StreamCipherSeek,
-    N: ArrayLength<u8>,
-{
-    fn from(a: Key<C>) -> ChaCipher<C, N> {
-        ChaCipher {
-            cipher: ChaChaPoly1305::<C, N>::new(&a),
+impl<T: ArrayLength<u8>> From<Key<Aes128>> for AesCipher<Aes128, T> {
+    fn from(a: Key<Aes128>) -> AesCipher<Aes128, T> {
+        AesCipher {
+            cipher: AesGcm::<Aes128, T>::new(&a),
+        }
+    }
+}
+
+impl<T: ArrayLength<u8>> From<Key<Aes192>> for AesCipher<Aes192, T> {
+    fn from(a: Key<Aes192>) -> AesCipher<Aes192, T> {
+        AesCipher {
+            cipher: AesGcm::<Aes192, T>::new(&a),
+        }
+    }
+}
+
+impl<T: ArrayLength<u8>> From<Key<Aes256>> for AesCipher<Aes256, T> {
+    fn from(a: Key<Aes256>) -> AesCipher<Aes256, T> {
+        AesCipher {
+            cipher: AesGcm::<Aes256, T>::new(&a),
         }
     }
 }
