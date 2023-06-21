@@ -2,7 +2,7 @@ mod err;
 mod p2p;
 mod udp;
 
-use async_std::net::{SocketAddr, ToSocketAddrs};
+use async_std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use async_trait::async_trait;
 use log::{error, trace};
 use std::io;
@@ -13,6 +13,8 @@ use crate::udp::UdpStream;
 
 const REQUEST_RETRIES: u16 = 1000;
 const REQUEST_MSG_DUR: Option<Duration> = Some(Duration::from_millis(25));
+
+pub const LOOPBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
 /// `IOStream` trait for heterogeneous transport implementation.
 /// Assumes method implementations to [`connect`][IOStream::connect], [`poll`][IOStream::poll]
@@ -54,6 +56,7 @@ impl StreamHandle {
         ttl: Option<u32>,
         sw_tag: Option<&'static str>,
     ) -> StreamHandle {
+        // TODO: WebRTC socket backend implementation
         let socket = get_udp_stream(addr, ttl, sw_tag).await;
         let pub_ip = match socket.get_ext_ip(REQUEST_RETRIES).await {
             Ok(ip) => {
@@ -146,16 +149,12 @@ pub async fn get_udp_stream<A: ToSocketAddrs>(
 mod tests {
     use super::*;
 
-    use async_std::net::{IpAddr, Ipv4Addr};
-    use async_std::sync::Mutex;
-
-    static TEST_MUTEX: Mutex<Option<bool>> = Mutex::new(None);
-
     const TEST_STRING: &str = "alpha test string";
-    const TEST_LOOPBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
     const TEST_MACHINE_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
     const PORT_A: u16 = 34254;
     const PORT_B: u16 = 34250;
+
+    static TEST_MUTEX: async_std::sync::Mutex<Option<bool>> = async_std::sync::Mutex::new(None);
 
     #[async_std::test]
     async fn stream_works() {
@@ -167,8 +166,8 @@ mod tests {
         let stream_a = StreamHandle::new(&addr_a, None, None).await;
         let stream_b = StreamHandle::new(&addr_b, None, None).await;
 
-        let addr_a = SocketAddr::new(TEST_LOOPBACK_IP, PORT_B);
-        let addr_b = SocketAddr::new(TEST_LOOPBACK_IP, PORT_A);
+        let addr_a = SocketAddr::new(LOOPBACK_IP, PORT_B);
+        let addr_b = SocketAddr::new(LOOPBACK_IP, PORT_A);
 
         let handle = futures::try_join!(stream_a.bind(&addr_a), stream_b.bind(&addr_b));
         // hole punching through NAT in `bind` works
@@ -188,13 +187,9 @@ mod tests {
     async fn stun_works() {
         let _guard = TEST_MUTEX.lock().await;
 
-        let stream = UdpStream::new(
-            &[SocketAddr::new(TEST_MACHINE_IP, PORT_A)],
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let stream = UdpStream::new(&[SocketAddr::new(TEST_MACHINE_IP, PORT_A)], None, None)
+            .await
+            .unwrap();
 
         assert!(stream.get_ext_ip(REQUEST_RETRIES).await.is_ok());
     }

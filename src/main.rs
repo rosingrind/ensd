@@ -1,5 +1,5 @@
 use ::cipher::{AppRng, CipherHandle, Encryption, SeedableRng};
-use ::stream::StreamHandle;
+use ::stream::{StreamHandle, LOOPBACK_IP};
 use async_std::{
     fs,
     net::{AddrParseError, IpAddr, SocketAddr},
@@ -134,8 +134,8 @@ async fn main() {
     let arg_mode = args.get(1).map(|c| c.trim());
 
     let (msg_remote, snd_remote) = if let Some("loopback") = arg_mode {
-        let msg_remote = "127.0.0.1:34254".parse().unwrap(); // FIXME
-        let snd_remote = "127.0.0.1:34054".parse().unwrap(); // FIXME
+        let msg_remote = SocketAddr::new(LOOPBACK_IP, conf.msg_addr.port);
+        let snd_remote = SocketAddr::new(LOOPBACK_IP, conf.snd_addr.port);
         (msg_remote, snd_remote)
     } else {
         let msg_remote = loop {

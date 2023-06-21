@@ -46,6 +46,7 @@ impl UdpStream {
     }
 }
 
+// TODO: implement abstract buffer tagging utils
 #[async_trait]
 impl IOStream for UdpStream {
     async fn bind(&self, addr: &[SocketAddr]) -> io::Result<()> {

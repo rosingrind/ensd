@@ -33,6 +33,7 @@ pub(super) trait P2P {
     async fn try_nat_tr<A: ToSocketAddrs>(&self, addr: &A, retries: u16) -> io::Result<()>;
 }
 
+// TODO: add NAT type check, see https://github.com/Azure/RDS-Templates/tree/master/AVD-TestShortpath
 #[async_trait(?Send)]
 impl P2P for StreamHandle {
     async fn try_nat_tr<A: ToSocketAddrs>(&self, addr: &A, retries: u16) -> io::Result<()> {

@@ -49,6 +49,7 @@ where
 
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
         let spec = Nonce::<AesGcm<T, U>>::default().len();
+        // FIXME: duplicate code fragment
         if nonce.len() == spec {
             self.cipher
                 .encrypt_in_place(nonce.into(), associated_data, buffer)
@@ -81,6 +82,7 @@ where
 
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
         let spec = Nonce::<AesGcm<T, U>>::default().len();
+        // FIXME: duplicate code fragment
         if nonce.len() == spec {
             self.cipher
                 .decrypt_in_place(nonce.into(), associated_data, buffer)
