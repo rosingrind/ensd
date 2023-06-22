@@ -1,7 +1,8 @@
 use ::cipher::{AppRng, CipherHandle, Encryption, SeedableRng};
 use ::stream::{StreamHandle, LOOPBACK_IP};
 use async_std::{
-    fs,
+    fs, io,
+    io::WriteExt,
     net::{AddrParseError, IpAddr, SocketAddr},
     path::Path,
     task,
@@ -15,11 +16,12 @@ use dasp_signal::{self as signal, Signal};
 use log::{debug, error, info, trace};
 use serde::Deserialize;
 use std::{
-    env, io,
-    io::Write,
-    mem,
-    sync::{mpsc, Arc},
-    thread,
+    env, mem,
+    sync::{
+        mpsc,
+        mpsc::{Receiver, Sender},
+        Arc,
+    },
 };
 
 const RESOURCES_PATH: &str = "res";
@@ -58,26 +60,28 @@ fn parse_cfg(cfg: &SupportedStreamConfig) -> StreamConfig {
     }
 }
 
-fn request_phrase() -> String {
-    let mut out = io::stdout().lock();
+async fn request_phrase() -> String {
+    let mut out = io::stdout();
     out.write_all(format!("[{WHITE_SQUARE}] enter seed phrase: ").as_ref())
+        .await
         .unwrap();
-    out.flush().unwrap();
+    out.flush().await.unwrap();
 
     let mut phrase = String::new();
-    io::stdin().read_line(&mut phrase).unwrap();
+    io::stdin().read_line(&mut phrase).await.unwrap();
 
     phrase
 }
 
-fn request_named_remote(name: &str) -> Result<SocketAddr, AddrParseError> {
-    let mut out = io::stdout().lock();
+async fn request_named_remote(name: &str) -> Result<SocketAddr, AddrParseError> {
+    let mut out = io::stdout();
     out.write_all(format!("[{WHITE_SQUARE}] enter remote addr for socket '{name}': ").as_ref())
+        .await
         .unwrap();
-    out.flush().unwrap();
+    out.flush().await.unwrap();
 
     let mut phrase = String::new();
-    io::stdin().read_line(&mut phrase).unwrap();
+    io::stdin().read_line(&mut phrase).await.unwrap();
 
     phrase.trim().parse()
 }
@@ -109,7 +113,7 @@ async fn main() {
 
     let cipher = Arc::new(CipherHandle::new(
         &conf.encryption,
-        AppRng::from_seed(request_phrase().into()),
+        AppRng::from_seed(request_phrase().await.into()),
     ));
 
     let msg_addr = SocketAddr::new(conf.msg_addr.ip, conf.msg_addr.port);
@@ -138,13 +142,13 @@ async fn main() {
         (msg_remote, snd_remote)
     } else {
         let msg_remote = loop {
-            match request_named_remote("msg") {
+            match request_named_remote("msg").await {
                 Ok(res) => break res,
                 Err(e) => error!("invalid address: {e}"),
             }
         };
         let snd_remote = loop {
-            match request_named_remote("snd") {
+            match request_named_remote("snd").await {
                 Ok(res) => break res,
                 Err(e) => error!("invalid address: {e}"),
             }
@@ -159,46 +163,12 @@ async fn main() {
     let (tx, rx) = mpsc::channel::<Vec<f32>>();
 
     // encode to 44100, encrypt and send
-    {
-        let io_cipher = cipher.clone();
-        let snd_put = snd_stream.clone();
-        let src_rate = mic_cfg.sample_rate.0;
-        thread::spawn(move || loop {
-            let buf = rx.recv().unwrap();
-            let len = buf.len();
-            let _a = *buf.first().unwrap_or(&0.0);
-            let _b = *buf.last().unwrap_or(&0.0);
-
-            let source = signal::from_iter(buf.clone().into_iter());
-            let sinc = source.take(SINC_RING_SIZE).collect::<Vec<_>>();
-            let source = signal::from_iter(buf.into_iter());
-            let len = (len as f32 * (TRANSPORT_SRATE as f32 / src_rate as f32)) as usize;
-            let res = source // Sinc::new([0.0; 16].into()) Linear::new(_a, _b)
-                .from_hz_to_hz(
-                    Sinc::new(sinc.into()),
-                    src_rate as f64,
-                    TRANSPORT_SRATE as f64,
-                )
-                .until_exhausted()
-                .take(len)
-                .map(|c| c.to_ne_bytes())
-                .collect::<Vec<_>>()
-                .concat();
-
-            let res = task::block_on(async {
-                // FIXME
-                snd_put
-                    .push(io_cipher.encrypt(res.as_ref()).await.unwrap().as_ref())
-                    .await
-            });
-
-            if res.is_err() {
-                error!("failed to push packets with audio data");
-                continue;
-            }
-            task::spawn(async { log::logger().flush() });
-        })
-    };
+    task::spawn(snd_put_loop(
+        cipher.clone(),
+        snd_stream.clone(),
+        rx,
+        mic_cfg.sample_rate.0,
+    ));
 
     // collect samples to buf
     let stream_a = {
@@ -220,48 +190,12 @@ async fn main() {
     let (tx, rx) = mpsc::channel::<Vec<f32>>();
 
     // get samples, decrypt and decode to tgt_rate
-    {
-        let tgt_rate = out_cfg.sample_rate.0;
-        let io_cipher = cipher.clone();
-        let snd_get = snd_stream.clone();
-        thread::spawn(move || loop {
-            let res = task::block_on(async {
-                // FIXME
-                io_cipher
-                    .decrypt(snd_get.poll().await.unwrap().as_ref())
-                    .await
-            });
-            let buf = res;
-            if buf.is_err() {
-                error!("failed to decrypt packets with audio data");
-                continue;
-            }
-            let buf = buf
-                .unwrap()
-                .chunks(mem::size_of::<f32>())
-                .map(|c| f32::from_ne_bytes(<[u8; mem::size_of::<f32>()]>::try_from(c).unwrap()))
-                .collect::<Vec<_>>();
-            let len = buf.len();
-            let _a = *buf.first().unwrap_or(&0.0);
-            let _b = *buf.last().unwrap_or(&0.0);
-            let source = signal::from_iter(buf.clone().into_iter());
-            let sinc = source.take(SINC_RING_SIZE).collect::<Vec<_>>();
-            let source = signal::from_iter(buf.into_iter());
-            let len = (len as f32 * (tgt_rate as f32 / TRANSPORT_SRATE as f32)) as usize;
-            let res = source
-                .from_hz_to_hz(
-                    Sinc::new(sinc.into()),
-                    TRANSPORT_SRATE as f64,
-                    tgt_rate as f64,
-                )
-                .until_exhausted()
-                .take(len)
-                .collect::<Vec<_>>();
-
-            tx.send(res).unwrap();
-            task::spawn(async { log::logger().flush() });
-        })
-    };
+    task::spawn(snd_get_loop(
+        cipher.clone(),
+        snd_stream.clone(),
+        tx,
+        out_cfg.sample_rate.0,
+    ));
 
     // collect and play samples
     let stream_b = {
@@ -289,63 +223,158 @@ async fn main() {
 
     let prompt = Arc::new(format!("[{WHITE_SQUARE}] TX: "));
 
-    let cipher_a = cipher.clone();
-    let prompt_a = prompt.clone();
-    let msg_put = msg_stream.clone();
-    thread::spawn(move || loop {
+    task::spawn(msg_put_loop(
+        cipher.clone(),
+        msg_stream.clone(),
+        prompt.clone(),
+    ));
+
+    task::spawn(msg_get_loop(
+        cipher.clone(),
+        msg_stream.clone(),
+        prompt.clone(),
+    ));
+
+    #[allow(clippy::empty_loop)]
+    loop {}
+}
+
+#[inline]
+async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: Arc<String>) {
+    loop {
         let mut buf = String::new();
-        let mut out = io::stdout().lock();
-        let deletion = prompt_a.chars().map(|_| '\u{8}').collect::<String>();
-        out.write_all(deletion.as_bytes()).unwrap();
+        let mut out = io::stdout();
+        let deletion = prompt.chars().map(|_| '\u{8}').collect::<String>();
+        out.write_all(deletion.as_bytes()).await.unwrap();
 
-        out.write_all(prompt_a.as_bytes()).unwrap();
-        out.flush().unwrap();
+        out.write_all(prompt.as_bytes()).await.unwrap();
+        out.flush().await.unwrap();
         drop(out);
-        io::stdin().read_line(&mut buf).unwrap();
+        io::stdin().read_line(&mut buf).await.unwrap();
 
-        let res = task::block_on(async {
-            // FIXME
-            msg_put
-                .push(
-                    cipher_a
-                        .encrypt(buf.trim().as_ref())
-                        .await
-                        .unwrap()
-                        .as_slice(),
-                )
-                .await
-        });
+        let res = stream
+            .push(
+                cipher
+                    .encrypt(buf.trim().as_ref())
+                    .await
+                    .unwrap()
+                    .as_slice(),
+            )
+            .await;
         if res.is_err() {
             error!("failed to push packets with text data");
             continue;
         }
-    });
 
-    let cipher_b = cipher.clone();
-    let prompt_b = prompt.clone();
-    let msg_get = msg_stream.clone();
-    thread::spawn(move || loop {
-        let buf = task::block_on(msg_get.poll()).unwrap();
-        let mut out = io::stdout().lock();
+        log::logger().flush();
+    }
+}
+
+#[inline]
+async fn snd_put_loop(
+    cipher: Arc<CipherHandle>,
+    stream: Arc<StreamHandle>,
+    rx: Receiver<Vec<f32>>,
+    src_rate: u32,
+) {
+    loop {
+        let buf = rx.recv().unwrap();
+        let len = buf.len();
+        let _a = *buf.first().unwrap_or(&0.0);
+        let _b = *buf.last().unwrap_or(&0.0);
+
+        let source = signal::from_iter(buf.clone().into_iter());
+        let sinc = source.take(SINC_RING_SIZE).collect::<Vec<_>>();
+        let source = signal::from_iter(buf.into_iter());
+        let len = (len as f32 * (TRANSPORT_SRATE as f32 / src_rate as f32)) as usize;
+        let res = source
+            .from_hz_to_hz(
+                Sinc::new(sinc.into()),
+                src_rate as f64,
+                TRANSPORT_SRATE as f64,
+            )
+            .until_exhausted()
+            .take(len)
+            .map(|c| c.to_ne_bytes())
+            .collect::<Vec<_>>()
+            .concat();
+
+        let res = stream
+            .push(cipher.encrypt(res.as_ref()).await.unwrap().as_ref())
+            .await;
+
+        if res.is_err() {
+            error!("failed to push packets with audio data");
+            continue;
+        }
+    }
+}
+
+#[inline]
+async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: Arc<String>) {
+    loop {
+        let buf = task::block_on(stream.poll()).unwrap();
+        let mut out = io::stdout();
         trace!("RX-CRYPT*: '{:?}'", buf);
-        let deletion = prompt_b.chars().map(|_| '\u{8}').collect::<String>();
-        out.write_all(deletion.as_bytes()).unwrap();
+        let deletion = prompt.chars().map(|_| '\u{8}').collect::<String>();
+        out.write_all(deletion.as_bytes()).await.unwrap();
 
         out.write_all(
             format!(
                 "[{BLACK_SQUARE}] RX: '{}'\n",
-                String::from_utf8(task::block_on(cipher_b.decrypt(buf.as_ref())).unwrap()).unwrap()
+                String::from_utf8(task::block_on(cipher.decrypt(buf.as_ref())).unwrap()).unwrap()
             )
             .as_ref(),
         )
+        .await
         .unwrap();
-        out.write_all(b"\n").unwrap();
-        out.write_all(prompt_b.as_bytes()).unwrap();
-        out.flush().unwrap();
-        drop(out)
-    });
+        out.write_all(b"\n").await.unwrap();
+        out.write_all(prompt.as_bytes()).await.unwrap();
+        out.flush().await.unwrap();
+        drop(out);
 
-    loop {}
+        log::logger().flush();
+    }
+}
+
+#[inline]
+async fn snd_get_loop(
+    cipher: Arc<CipherHandle>,
+    stream: Arc<StreamHandle>,
+    tx: Sender<Vec<f32>>,
+    tgt_rate: u32,
+) {
+    loop {
+        let res = cipher.decrypt(stream.poll().await.unwrap().as_ref()).await;
+        let buf = res;
+        if buf.is_err() {
+            error!("failed to decrypt packets with audio data");
+            continue;
+        }
+        let buf = buf
+            .unwrap()
+            .chunks(mem::size_of::<f32>())
+            .map(|c| f32::from_ne_bytes(<[u8; mem::size_of::<f32>()]>::try_from(c).unwrap()))
+            .collect::<Vec<_>>();
+        let len = buf.len();
+        let _a = *buf.first().unwrap_or(&0.0);
+        let _b = *buf.last().unwrap_or(&0.0);
+        let source = signal::from_iter(buf.clone().into_iter());
+        let sinc = source.take(SINC_RING_SIZE).collect::<Vec<_>>();
+        let source = signal::from_iter(buf.into_iter());
+        let len = (len as f32 * (tgt_rate as f32 / TRANSPORT_SRATE as f32)) as usize;
+        let res = source
+            .from_hz_to_hz(
+                Sinc::new(sinc.into()),
+                TRANSPORT_SRATE as f64,
+                tgt_rate as f64,
+            )
+            .until_exhausted()
+            .take(len)
+            .collect::<Vec<_>>();
+
+        tx.send(res).unwrap();
+    }
 }
 
 #[cfg(test)]
