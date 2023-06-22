@@ -38,32 +38,22 @@ pub type AppRng = BlockRng<AppRngCore>;
 /// `AesSpec` for `.toml` config parsing.
 /// Offers [`Aes128`][Aes128], [`Aes192`][Aes192] and [`Aes256`][Aes256] block ciphers
 /// with [`Aes128`][AesSpec::default] being default choice.
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Copy, Clone, Default)]
 pub enum AesSpec {
     Aes128,
     Aes192,
+    #[default]
     Aes256,
 }
 
 /// `ChaSpec` for `.toml` config parsing.
 /// Offers [`ChaCha20`][ChaCha20] and [`XChaCha20`][XChaCha20] block ciphers with
 /// [`ChaCha20`][ChaSpec::default] being default choice.
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Copy, Clone, Default)]
 pub enum ChaSpec {
+    #[default]
     ChaCha20,
     XChaCha20,
-}
-
-impl Default for AesSpec {
-    fn default() -> Self {
-        AesSpec::Aes256
-    }
-}
-
-impl Default for ChaSpec {
-    fn default() -> Self {
-        ChaSpec::ChaCha20
-    }
 }
 
 /// `AesNonce` for `.toml` config parsing.
@@ -71,19 +61,14 @@ impl Default for ChaSpec {
 /// [`AesSpec`][AesSpec] ciphers.
 ///
 /// See [`get_aes_cipher`][get_aes_cipher] for details about recommended `AesNonce` values.
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Copy, Clone, Default)]
 pub enum AesNonce {
+    #[default]
     U12,
     U13,
     U14,
     U15,
     U16,
-}
-
-impl Default for AesNonce {
-    fn default() -> Self {
-        AesNonce::U12
-    }
 }
 
 /// `IOCipher` trait for heterogeneous encryption implementation.

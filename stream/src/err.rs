@@ -12,9 +12,9 @@ impl std::fmt::Display for StreamError {
     }
 }
 
-impl Into<Error> for StreamError {
-    fn into(self) -> Error {
-        Error::new(self.kind, self.error)
+impl From<StreamError> for Error {
+    fn from(value: StreamError) -> Self {
+            Error::new(value.kind, value.error)
     }
 }
 

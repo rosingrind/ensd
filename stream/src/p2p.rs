@@ -23,8 +23,7 @@ impl<T: ToSocketAddrs> SocketAddrsUtil for &T {
         self.to_socket_addrs()
             .await
             .unwrap()
-            .find(|c| c == dest)
-            .is_some()
+            .any(|c| c == *dest)
     }
 }
 
@@ -54,7 +53,7 @@ impl P2P for StreamHandle {
         );
 
         let mut msg = stage_a.clone();
-        let mut iter = (0..retries).into_iter();
+        let mut iter = 0..retries;
 
         let res = loop {
             self.push_to(&msg, addr).await?;
@@ -73,7 +72,7 @@ impl P2P for StreamHandle {
                         }
                         _ => break Err(ERR_VALIDATION),
                     }
-                    iter = (0..retries).into_iter()
+                    iter = 0..retries
                 }
             }
             if iter.next().is_none() {

@@ -136,7 +136,7 @@ pub async fn get_udp_stream<A: ToSocketAddrs>(
 ) -> Box<dyn IOStream + Sync + Send> {
     Box::new(
         UdpStream::new(
-            &*addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>(),
+            &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>(),
             ttl,
             sw_tag,
         )

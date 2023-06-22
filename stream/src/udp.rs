@@ -128,14 +128,14 @@ impl IOStream for UdpStream {
     }
 
     async fn push(&self, buf: &[u8]) -> io::Result<()> {
-        for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_BUF_SIZE) {
+        for buf in [buf, MSG_END_TAG].concat().chunks(PACKET_BUF_SIZE) {
             self.socket.send(buf).await?;
         }
         Ok(())
     }
 
     async fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()> {
-        for buf in [buf, MSG_END_TAG.as_ref()].concat().chunks(PACKET_BUF_SIZE) {
+        for buf in [buf, MSG_END_TAG].concat().chunks(PACKET_BUF_SIZE) {
             for addr in addr {
                 self.socket.send_to(buf, addr).await?;
             }
@@ -161,7 +161,7 @@ impl IOStream for UdpStream {
 
         let msg = build_request(self.sw_tag)?;
         let mut buf = [0u8; 256];
-        let mut iter = (0..retries).into_iter();
+        let mut iter = 0..retries;
 
         loop {
             self.socket.send_to(msg.as_ref(), stun_addr).await?;
@@ -176,7 +176,7 @@ impl IOStream for UdpStream {
                     }
                     _ => {}
                 }
-                iter = (0..retries).into_iter();
+                iter = 0..retries;
             }
             if iter.next().is_none() {
                 break Err(ERR_CONNECTION.into());

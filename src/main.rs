@@ -13,7 +13,6 @@ use cpal::{
 use dasp_interpolate::sinc::Sinc;
 use dasp_signal::{self as signal, Signal};
 use log::{debug, error, info, trace};
-use log4rs;
 use serde::Deserialize;
 use std::{
     env, io,
@@ -61,7 +60,7 @@ fn parse_cfg(cfg: &SupportedStreamConfig) -> StreamConfig {
 
 fn request_phrase() -> String {
     let mut out = io::stdout().lock();
-    out.write(format!("[{WHITE_SQUARE}] enter seed phrase: ").as_ref())
+    out.write_all(format!("[{WHITE_SQUARE}] enter seed phrase: ").as_ref())
         .unwrap();
     out.flush().unwrap();
 
@@ -73,7 +72,7 @@ fn request_phrase() -> String {
 
 fn request_named_remote(name: &str) -> Result<SocketAddr, AddrParseError> {
     let mut out = io::stdout().lock();
-    out.write(format!("[{WHITE_SQUARE}] enter remote addr for socket '{name}': ").as_ref())
+    out.write_all(format!("[{WHITE_SQUARE}] enter remote addr for socket '{name}': ").as_ref())
         .unwrap();
     out.flush().unwrap();
 
@@ -104,7 +103,7 @@ async fn main() {
     debug!("out: {:?}", out_cfg);
 
     let path = Path::new(RESOURCES_PATH).join("cfg.toml");
-    let conf = toml::from_str::<Config>(&*fs::read_to_string(path).await.unwrap()).unwrap();
+    let conf = toml::from_str::<Config>(&fs::read_to_string(path).await.unwrap()).unwrap();
 
     debug!("{:?}", conf.encryption);
 
@@ -207,14 +206,14 @@ async fn main() {
         let fn_data = move |a: &[f32], _: &_| {
             let buf = a
                 .chunks(src_chan as usize)
-                .map(|c| c.into_iter().map(|s| *s / c.len() as f32).sum::<f32>())
+                .map(|c| c.iter().map(|s| *s / c.len() as f32).sum::<f32>())
                 .collect::<Vec<_>>();
 
             tx.send(buf).unwrap();
         };
         let fn_err = |e: _| error!("an error occurred on stream: {}", e);
         mic_device
-            .build_input_stream(&mic_cfg.clone().into(), fn_data, fn_err, None)
+            .build_input_stream(&mic_cfg.clone(), fn_data, fn_err, None)
             .unwrap()
     };
 
@@ -281,7 +280,7 @@ async fn main() {
         };
         let fn_err = |e: _| error!("an error occurred on stream: {}", e);
         out_device
-            .build_output_stream(&out_cfg.clone().into(), fn_data, fn_err, None)
+            .build_output_stream(&out_cfg.clone(), fn_data, fn_err, None)
             .unwrap()
     };
 
@@ -297,9 +296,9 @@ async fn main() {
         let mut buf = String::new();
         let mut out = io::stdout().lock();
         let deletion = prompt_a.chars().map(|_| '\u{8}').collect::<String>();
-        out.write(deletion.as_bytes()).unwrap();
+        out.write_all(deletion.as_bytes()).unwrap();
 
-        out.write(prompt_a.as_bytes()).unwrap();
+        out.write_all(prompt_a.as_bytes()).unwrap();
         out.flush().unwrap();
         drop(out);
         io::stdin().read_line(&mut buf).unwrap();
@@ -330,9 +329,9 @@ async fn main() {
         let mut out = io::stdout().lock();
         trace!("RX-CRYPT*: '{:?}'", buf);
         let deletion = prompt_b.chars().map(|_| '\u{8}').collect::<String>();
-        out.write(deletion.as_bytes()).unwrap();
+        out.write_all(deletion.as_bytes()).unwrap();
 
-        out.write(
+        out.write_all(
             format!(
                 "[{BLACK_SQUARE}] RX: '{}'\n",
                 String::from_utf8(task::block_on(cipher_b.decrypt(buf.as_ref())).unwrap()).unwrap()
@@ -340,8 +339,8 @@ async fn main() {
             .as_ref(),
         )
         .unwrap();
-        out.write(b"\n").unwrap();
-        out.write(prompt_b.as_bytes()).unwrap();
+        out.write_all(b"\n").unwrap();
+        out.write_all(prompt_b.as_bytes()).unwrap();
         out.flush().unwrap();
         drop(out)
     });
@@ -356,6 +355,6 @@ mod tests {
     #[async_std::test]
     async fn config_is_valid() {
         let path = Path::new(RESOURCES_PATH).join("cfg.toml");
-        toml::from_str::<Config>(&*fs::read_to_string(path).await.unwrap()).unwrap();
+        toml::from_str::<Config>(&fs::read_to_string(path).await.unwrap()).unwrap();
     }
 }
