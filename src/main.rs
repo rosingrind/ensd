@@ -26,8 +26,8 @@ use std::{
 
 const RESOURCES_PATH: &str = "res";
 const SINC_RING_SIZE: usize = 2;
-const WHITE_SQUARE: char = '\u{25A0}';
-const BLACK_SQUARE: char = '\u{25A1}';
+const UNICODE_WHITE_SQUARE: char = '\u{25A0}';
+const UNICODE_BLACK_SQUARE: char = '\u{25A1}';
 const PACKET_BUF_SIZE: usize = 256;
 const CPAL_BUF_SIZE: FrameCount = (PACKET_BUF_SIZE * 8) as FrameCount;
 const SOFTWARE_TAG: Option<&str> = Some("ensd");
@@ -40,6 +40,7 @@ struct Config {
     snd_addr: UDP,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Deserialize)]
 struct UDP {
     ip: IpAddr,
@@ -61,10 +62,9 @@ fn parse_cfg(cfg: &SupportedStreamConfig) -> StreamConfig {
 }
 
 async fn request_phrase() -> String {
+    let msg = format!("[{UNICODE_WHITE_SQUARE}] enter seed phrase: ");
     let mut out = io::stdout();
-    out.write_all(format!("[{WHITE_SQUARE}] enter seed phrase: ").as_ref())
-        .await
-        .unwrap();
+    out.write_all(msg.as_ref()).await.unwrap();
     out.flush().await.unwrap();
 
     let mut phrase = String::new();
@@ -74,10 +74,9 @@ async fn request_phrase() -> String {
 }
 
 async fn request_named_remote(name: &str) -> Result<SocketAddr, AddrParseError> {
+    let msg = format!("[{UNICODE_WHITE_SQUARE}] enter remote addr for socket '{name}': ");
     let mut out = io::stdout();
-    out.write_all(format!("[{WHITE_SQUARE}] enter remote addr for socket '{name}': ").as_ref())
-        .await
-        .unwrap();
+    out.write_all(msg.as_ref()).await.unwrap();
     out.flush().await.unwrap();
 
     let mut phrase = String::new();
@@ -221,18 +220,16 @@ async fn main() {
     stream_a.play().unwrap();
     stream_b.play().unwrap();
 
-    let prompt = Arc::new(format!("[{WHITE_SQUARE}] TX: "));
-
     task::spawn(msg_put_loop(
         cipher.clone(),
         msg_stream.clone(),
-        prompt.clone(),
+        format!("[{UNICODE_WHITE_SQUARE}] TX: "),
     ));
 
     task::spawn(msg_get_loop(
         cipher.clone(),
         msg_stream.clone(),
-        prompt.clone(),
+        format!("[{UNICODE_WHITE_SQUARE}] TX: "),
     ));
 
     #[allow(clippy::empty_loop)]
@@ -240,7 +237,7 @@ async fn main() {
 }
 
 #[inline]
-async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: Arc<String>) {
+async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: String) {
     loop {
         let mut buf = String::new();
         let mut out = io::stdout();
@@ -311,7 +308,7 @@ async fn snd_put_loop(
 }
 
 #[inline]
-async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: Arc<String>) {
+async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: String) {
     loop {
         let buf = task::block_on(stream.poll()).unwrap();
         let mut out = io::stdout();
@@ -319,16 +316,11 @@ async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prom
         let deletion = prompt.chars().map(|_| '\u{8}').collect::<String>();
         out.write_all(deletion.as_bytes()).await.unwrap();
 
-        out.write_all(
-            format!(
-                "[{BLACK_SQUARE}] RX: '{}'\n",
-                String::from_utf8(task::block_on(cipher.decrypt(buf.as_ref())).unwrap()).unwrap()
-            )
-            .as_ref(),
-        )
-        .await
-        .unwrap();
-        out.write_all(b"\n").await.unwrap();
+        let msg = format!(
+            "[{UNICODE_BLACK_SQUARE}] RX: '{}'\n\n",
+            String::from_utf8(task::block_on(cipher.decrypt(buf.as_ref())).unwrap()).unwrap()
+        );
+        out.write_all(msg.as_ref()).await.unwrap();
         out.write_all(prompt.as_bytes()).await.unwrap();
         out.flush().await.unwrap();
         drop(out);
