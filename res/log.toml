@@ -28,8 +28,8 @@ level = "off"
 
 [loggers]
 "ensd" = { level = "trace", appenders = ["stdout", "common"], additive = false }
-"ensd::stream::udp" = { level = "trace", appenders = ["stdout", "stream"], additive = false }
-"ensd::stream" = { level = "trace", appenders = ["stream"], additive = false }
-"ensd::cipher::aes" = { level = "trace", appenders = ["cipher"], additive = false }
-"ensd::cipher::cha" = { level = "trace", appenders = ["cipher"], additive = false }
+"stream::udp" = { level = "trace", appenders = ["stdout", "stream"], additive = false }
+"stream" = { level = "trace", appenders = ["stream"], additive = false }
+"cipher::aes" = { level = "trace", appenders = ["cipher"], additive = false }
+"cipher::cha" = { level = "trace", appenders = ["cipher"], additive = false }
 "async_io" = { level = "debug", appenders = ["driver"], additive = false }
