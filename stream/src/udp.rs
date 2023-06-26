@@ -17,7 +17,7 @@ use stun_codec::{
     Message, MessageClass, MessageDecoder, MessageEncoder, TransactionId,
 };
 
-use crate::err::{ERR_CONNECTION, ERR_STUN_QUERY};
+use crate::err::{ERR_CONNECTION, ERR_FT_TIMEOUT, ERR_STUN_QUERY};
 use crate::IOStream;
 use crate::REQUEST_MSG_DUR;
 
@@ -68,7 +68,14 @@ impl IOStream for UdpStream {
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         loop {
-            let len = self.socket.recv(&mut buf).await?;
+            let fut = self.socket.recv(&mut buf);
+            let len = if res.is_empty() {
+                fut.await
+            } else {
+                future::timeout(REQUEST_MSG_DUR, fut)
+                    .await
+                    .map_err(|_| ERR_FT_TIMEOUT)?
+            }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -84,7 +91,14 @@ impl IOStream for UdpStream {
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         let addr = loop {
-            let (len, addr) = self.socket.recv_from(&mut buf).await?;
+            let fut = self.socket.recv_from(&mut buf);
+            let (len, addr) = if res.is_empty() {
+                fut.await
+            } else {
+                future::timeout(REQUEST_MSG_DUR, fut)
+                    .await
+                    .map_err(|_| ERR_FT_TIMEOUT)?
+            }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -100,7 +114,14 @@ impl IOStream for UdpStream {
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         loop {
-            let len = self.socket.peek(&mut buf).await?;
+            let fut = self.socket.peek(&mut buf);
+            let len = if res.is_empty() {
+                fut.await
+            } else {
+                future::timeout(REQUEST_MSG_DUR, fut)
+                    .await
+                    .map_err(|_| ERR_FT_TIMEOUT)?
+            }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -116,7 +137,14 @@ impl IOStream for UdpStream {
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
         let addr = loop {
-            let (len, addr) = self.socket.peek_from(&mut buf).await?;
+            let fut = self.socket.peek_from(&mut buf);
+            let (len, addr) = if res.is_empty() {
+                fut.await
+            } else {
+                future::timeout(REQUEST_MSG_DUR, fut)
+                    .await
+                    .map_err(|_| ERR_FT_TIMEOUT)?
+            }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
 
@@ -165,8 +193,7 @@ impl IOStream for UdpStream {
 
         loop {
             self.socket.send_to(msg.as_ref(), stun_addr).await?;
-            if let Ok(res) =
-                future::timeout(REQUEST_MSG_DUR.unwrap(), self.socket.recv_from(&mut buf)).await
+            if let Ok(res) = future::timeout(REQUEST_MSG_DUR, self.socket.recv_from(&mut buf)).await
             {
                 match res? {
                     (len, addr) if addr == stun_addr => {

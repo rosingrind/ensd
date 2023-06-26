@@ -12,7 +12,7 @@ use crate::p2p::P2P;
 use crate::udp::UdpStream;
 
 const REQUEST_RETRIES: u16 = 1000;
-const REQUEST_MSG_DUR: Option<Duration> = Some(Duration::from_millis(25));
+const REQUEST_MSG_DUR: Duration = Duration::from_millis(25);
 
 pub const LOOPBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
@@ -86,7 +86,7 @@ impl StreamHandle {
 
     pub async fn bind<A: ToSocketAddrs>(&self, addr: &A) -> io::Result<()> {
         self.try_nat_tr(addr, REQUEST_RETRIES).await?;
-        let addr = &*addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
+        let addr = &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
         self.socket.bind(addr).await
     }
 
@@ -115,7 +115,7 @@ impl StreamHandle {
     }
 
     pub async fn push_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: &A) -> io::Result<()> {
-        let addr = &*addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
+        let addr = &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
         self.socket.push_to(buf, addr).await
     }
 }

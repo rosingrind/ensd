@@ -20,10 +20,7 @@ trait SocketAddrsUtil {
 #[async_trait(?Send)]
 impl<T: ToSocketAddrs> SocketAddrsUtil for &T {
     async fn contains(&self, dest: &SocketAddr) -> bool {
-        self.to_socket_addrs()
-            .await
-            .unwrap()
-            .any(|c| c == *dest)
+        self.to_socket_addrs().await.unwrap().any(|c| c == *dest)
     }
 }
 
@@ -82,7 +79,7 @@ impl P2P for StreamHandle {
 
         let res = match res {
             Ok(_) => loop {
-                let res = future::timeout(REQUEST_MSG_DUR.unwrap(), self.peek_at()).await;
+                let res = future::timeout(REQUEST_MSG_DUR, self.peek_at()).await;
                 if res.is_err() {
                     break Ok(());
                 }

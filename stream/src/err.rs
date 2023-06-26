@@ -1,24 +1,31 @@
 use std::io::{Error, ErrorKind};
 
 #[derive(Debug)]
-pub(super) struct StreamError {
+pub(super) struct StreamError<'a> {
     kind: ErrorKind,
-    error: &'static str,
+    error: &'a str,
 }
 
-impl std::fmt::Display for StreamError {
+impl<'a> StreamError<'a> {
+    #[allow(dead_code)]
+    pub fn new(kind: ErrorKind, error: &'a str) -> Self {
+        StreamError { kind, error }
+    }
+}
+
+impl<'a> std::fmt::Display for StreamError<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.error)
     }
 }
 
-impl From<StreamError> for Error {
+impl<'a> From<StreamError<'a>> for Error {
     fn from(value: StreamError) -> Self {
-            Error::new(value.kind, value.error)
+        Error::new(value.kind, value.error)
     }
 }
 
-impl std::error::Error for StreamError {}
+impl<'a> std::error::Error for StreamError<'a> {}
 
 pub(super) const ERR_CONNECTION: StreamError = StreamError {
     kind: ErrorKind::TimedOut,
@@ -35,4 +42,8 @@ pub(super) const ERR_PIPE_BROKE: StreamError = StreamError {
 pub(super) const ERR_STUN_QUERY: StreamError = StreamError {
     kind: ErrorKind::Other,
     error: "can't decode any valid address from STUN message",
+};
+pub(super) const ERR_FT_TIMEOUT: StreamError = StreamError {
+    kind: ErrorKind::TimedOut,
+    error: "future request has timed out",
 };
