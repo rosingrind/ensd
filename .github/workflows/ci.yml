@@ -17,7 +17,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release
+          args: --release --features ci
 
   check:
     uses: ./.github/workflows/check.yml
