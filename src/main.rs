@@ -1,37 +1,22 @@
 use ::cipher::{AppRng, CipherHandle, Encryption, SeedableRng};
 use ::socket::{SocketHandle, LOOPBACK_IP};
+use ::stream::{mic_stream, out_stream};
 use async_std::{
-    fs, io,
+    channel, fs, io,
     io::WriteExt,
     net::{AddrParseError, IpAddr, SocketAddr},
     path::Path,
+    sync::Arc,
     task,
 };
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    BufferSize, FrameCount, StreamConfig, SupportedBufferSize, SupportedStreamConfig,
-};
-use dasp_interpolate::sinc::Sinc;
-use dasp_signal::{self as signal, Signal};
 use log::{debug, error, info, trace};
 use serde::Deserialize;
-use std::{
-    env, mem,
-    sync::{
-        mpsc,
-        mpsc::{Receiver, Sender},
-        Arc,
-    },
-};
+use std::env;
 
 const RESOURCES_PATH: &str = "res";
-const SINC_RING_SIZE: usize = 2;
 const UNICODE_WHITE_SQUARE: char = '\u{25A0}';
 const UNICODE_BLACK_SQUARE: char = '\u{25A1}';
-const PACKET_BUF_SIZE: usize = 256;
-const CPAL_BUF_SIZE: FrameCount = (PACKET_BUF_SIZE * 8) as FrameCount;
 const SOFTWARE_TAG: Option<&str> = Some("ensd");
-const TRANSPORT_SRATE: u64 = 32000;
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -45,20 +30,6 @@ struct Config {
 struct UDP {
     ip: IpAddr,
     port: u16,
-}
-
-// FIXME: terminate CPAL as it's NOT allocating required buf size
-fn parse_cfg(cfg: &SupportedStreamConfig) -> StreamConfig {
-    let frames = match cfg.buffer_size() {
-        SupportedBufferSize::Range { max, .. } => *max.min(&CPAL_BUF_SIZE),
-        SupportedBufferSize::Unknown => CPAL_BUF_SIZE,
-    };
-
-    StreamConfig {
-        channels: cfg.channels(),
-        sample_rate: cfg.sample_rate(),
-        buffer_size: BufferSize::Fixed(frames),
-    }
 }
 
 async fn request_phrase() -> String {
@@ -89,21 +60,6 @@ async fn request_named_remote(name: &str) -> Result<SocketAddr, AddrParseError> 
 async fn main() {
     let path = Path::new(RESOURCES_PATH).join("log.toml");
     log4rs::init_file(path, Default::default()).unwrap();
-
-    let host_id = *cpal::available_hosts().first().unwrap();
-    let host = cpal::host_from_id(host_id).unwrap();
-
-    let mic_device = host.default_input_device().unwrap();
-    let out_device = host.default_output_device().unwrap();
-
-    let mic_cfg = mic_device.default_input_config().unwrap();
-    let out_cfg = out_device.default_output_config().unwrap();
-
-    let mic_cfg = parse_cfg(&mic_cfg);
-    let out_cfg = parse_cfg(&out_cfg);
-
-    debug!("mic: {:?}", mic_cfg);
-    debug!("out: {:?}", out_cfg);
 
     let path = Path::new(RESOURCES_PATH).join("cfg.toml");
     let conf = toml::from_str::<Config>(&fs::read_to_string(path).await.unwrap()).unwrap();
@@ -159,66 +115,35 @@ async fn main() {
 
     println!();
 
-    let (tx, rx) = mpsc::channel::<Vec<f32>>();
+    let (tx, rx) = channel::unbounded();
 
     // encode to 44100, encrypt and send
-    task::spawn(snd_put_loop(
-        cipher.clone(),
-        snd_stream.clone(),
-        rx,
-        mic_cfg.sample_rate.0,
-    ));
+    task::spawn(snd_put_loop(cipher.clone(), snd_stream.clone(), rx));
 
     // collect samples to buf
-    let stream_a = {
-        let src_chan = mic_cfg.channels;
-        let fn_data = move |a: &[f32], _: &_| {
-            let buf = a
-                .chunks(src_chan as usize)
-                .map(|c| c.iter().map(|s| *s / c.len() as f32).sum::<f32>())
-                .collect::<Vec<_>>();
+    task::spawn(async move {
+        if let Err(err) = mic_stream(tx).await {
+            error!(
+                "worker 'mic' failed with error '{}'",
+                err.to_string().trim()
+            );
+        }
+    });
 
-            tx.send(buf).unwrap();
-        };
-        let fn_err = |e: _| error!("an error occurred on stream: {}", e);
-        mic_device
-            .build_input_stream(&mic_cfg.clone(), fn_data, fn_err, None)
-            .unwrap()
-    };
-
-    let (tx, rx) = mpsc::channel::<Vec<f32>>();
+    let (tx, rx) = channel::unbounded();
 
     // get samples, decrypt and decode to tgt_rate
-    task::spawn(snd_get_loop(
-        cipher.clone(),
-        snd_stream.clone(),
-        tx,
-        out_cfg.sample_rate.0,
-    ));
+    task::spawn(snd_get_loop(cipher.clone(), snd_stream.clone(), tx));
 
     // collect and play samples
-    let stream_b = {
-        let tgt_chan = out_cfg.channels;
-        let fn_data = move |a: &mut [f32], _: &_| {
-            let buf = rx.try_recv();
-            if buf.is_err() {
-                return;
-            }
-            let buf = buf.unwrap().into_iter();
-            for (sample, channel_group) in buf.zip(a.chunks_mut(tgt_chan as usize)) {
-                for channel in channel_group.iter_mut() {
-                    *channel = sample;
-                }
-            }
-        };
-        let fn_err = |e: _| error!("an error occurred on stream: {}", e);
-        out_device
-            .build_output_stream(&out_cfg.clone(), fn_data, fn_err, None)
-            .unwrap()
-    };
-
-    stream_a.play().unwrap();
-    stream_b.play().unwrap();
+    task::spawn(async move {
+        if let Err(err) = out_stream(rx).await {
+            error!(
+                "worker 'out' failed with error '{}'",
+                err.to_string().trim()
+            );
+        }
+    });
 
     task::spawn(msg_put_loop(
         cipher.clone(),
@@ -241,26 +166,22 @@ async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prom
     loop {
         let mut buf = String::new();
         let mut out = io::stdout();
-        let deletion = prompt.chars().map(|_| '\u{8}').collect::<String>();
-        out.write_all(deletion.as_bytes()).await.unwrap();
+        let del = prompt.chars().map(|_| '\u{8}').collect::<String>();
 
+        out.write_all(del.as_bytes()).await.unwrap();
         out.write_all(prompt.as_bytes()).await.unwrap();
         out.flush().await.unwrap();
         drop(out);
+
         io::stdin().read_line(&mut buf).await.unwrap();
 
-        let res = stream
-            .push(
-                cipher
-                    .encrypt(buf.trim().as_ref())
-                    .await
-                    .unwrap()
-                    .as_slice(),
-            )
-            .await;
-        if res.is_err() {
-            error!("failed to push packets with text data");
-            continue;
+        match cipher.encrypt(buf.trim().as_ref()).await {
+            Ok(msg) => {
+                if let Err(e) = stream.push(msg.as_slice()).await {
+                    error!("failed to push packets with text data: {e}")
+                }
+            }
+            Err(e) => error!("failed to encrypt data for network stream: {e}"),
         }
 
         log::logger().flush();
@@ -271,38 +192,19 @@ async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prom
 async fn snd_put_loop(
     cipher: Arc<CipherHandle>,
     stream: Arc<SocketHandle>,
-    rx: Receiver<Vec<f32>>,
-    src_rate: u32,
+    rx: channel::Receiver<Vec<u8>>,
 ) {
     loop {
-        let buf = rx.recv().unwrap();
-        let len = buf.len();
-        let _a = *buf.first().unwrap_or(&0.0);
-        let _b = *buf.last().unwrap_or(&0.0);
-
-        let source = signal::from_iter(buf.clone().into_iter());
-        let sinc = source.take(SINC_RING_SIZE).collect::<Vec<_>>();
-        let source = signal::from_iter(buf.into_iter());
-        let len = (len as f32 * (TRANSPORT_SRATE as f32 / src_rate as f32)) as usize;
-        let res = source
-            .from_hz_to_hz(
-                Sinc::new(sinc.into()),
-                src_rate as f64,
-                TRANSPORT_SRATE as f64,
-            )
-            .until_exhausted()
-            .take(len)
-            .map(|c| c.to_ne_bytes())
-            .collect::<Vec<_>>()
-            .concat();
-
-        let res = stream
-            .push(cipher.encrypt(res.as_ref()).await.unwrap().as_ref())
-            .await;
-
-        if res.is_err() {
-            error!("failed to push packets with audio data");
-            continue;
+        match rx.recv().await {
+            Ok(res) => match cipher.encrypt(res.as_ref()).await {
+                Ok(res) => {
+                    if let Err(err) = stream.push(res.as_ref()).await {
+                        error!("failed to push packets with audio data: {err}");
+                    }
+                }
+                Err(err) => error!("failed to encrypt data received from channel: {err}"),
+            },
+            Err(err) => error!("failed to receive from async channel: {err}"),
         }
     }
 }
@@ -310,21 +212,29 @@ async fn snd_put_loop(
 #[inline]
 async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prompt: String) {
     loop {
-        let buf = task::block_on(stream.poll()).unwrap();
-        let mut out = io::stdout();
-        trace!("RX-CRYPT*: '{:?}'", buf);
-        let deletion = prompt.chars().map(|_| '\u{8}').collect::<String>();
-        out.write_all(deletion.as_bytes()).await.unwrap();
+        match stream.poll().await {
+            Ok(buf) => {
+                let mut out = io::stdout();
+                trace!("RX-CRYPT*: '{:?}'", buf);
 
-        let msg = format!(
-            "[{UNICODE_BLACK_SQUARE}] RX: '{}'\n\n",
-            String::from_utf8(task::block_on(cipher.decrypt(buf.as_ref())).unwrap()).unwrap()
-        );
-        out.write_all(msg.as_ref()).await.unwrap();
-        out.write_all(prompt.as_bytes()).await.unwrap();
-        out.flush().await.unwrap();
-        drop(out);
-
+                match cipher.decrypt(buf.as_ref()).await {
+                    Ok(msg) => {
+                        let del = prompt.chars().map(|_| '\u{8}').collect::<String>();
+                        let msg = format!(
+                            "[{UNICODE_BLACK_SQUARE}] RX: '{}'\n\n",
+                            String::from_utf8(msg).unwrap()
+                        );
+                        out.write_all(del.as_bytes()).await.unwrap();
+                        out.write_all(msg.as_bytes()).await.unwrap();
+                        out.write_all(prompt.as_bytes()).await.unwrap();
+                    }
+                    Err(e) => error!("failed to decrypt data from network stream: {e}"),
+                }
+                out.flush().await.unwrap();
+                drop(out);
+            }
+            Err(e) => error!("failed to poll data from network stream: {e}"),
+        }
         log::logger().flush();
     }
 }
@@ -333,39 +243,20 @@ async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prom
 async fn snd_get_loop(
     cipher: Arc<CipherHandle>,
     stream: Arc<SocketHandle>,
-    tx: Sender<Vec<f32>>,
-    tgt_rate: u32,
+    tx: channel::Sender<Vec<u8>>,
 ) {
     loop {
-        let res = cipher.decrypt(stream.poll().await.unwrap().as_ref()).await;
-        let buf = res;
-        if buf.is_err() {
-            error!("failed to decrypt packets with audio data");
-            continue;
+        match stream.poll().await {
+            Ok(res) => match cipher.decrypt(res.as_ref()).await {
+                Ok(res) => {
+                    if let Err(err) = tx.send(res).await {
+                        error!("failed to send audio data to async channel: {err}");
+                    }
+                }
+                Err(err) => error!("failed to decrypt packets with audio data: {err}"),
+            },
+            Err(err) => error!("failed to poll data from network stream: {err}"),
         }
-        let buf = buf
-            .unwrap()
-            .chunks(mem::size_of::<f32>())
-            .map(|c| f32::from_ne_bytes(<[u8; mem::size_of::<f32>()]>::try_from(c).unwrap()))
-            .collect::<Vec<_>>();
-        let len = buf.len();
-        let _a = *buf.first().unwrap_or(&0.0);
-        let _b = *buf.last().unwrap_or(&0.0);
-        let source = signal::from_iter(buf.clone().into_iter());
-        let sinc = source.take(SINC_RING_SIZE).collect::<Vec<_>>();
-        let source = signal::from_iter(buf.into_iter());
-        let len = (len as f32 * (tgt_rate as f32 / TRANSPORT_SRATE as f32)) as usize;
-        let res = source
-            .from_hz_to_hz(
-                Sinc::new(sinc.into()),
-                TRANSPORT_SRATE as f64,
-                tgt_rate as f64,
-            )
-            .until_exhausted()
-            .take(len)
-            .collect::<Vec<_>>();
-
-        tx.send(res).unwrap();
     }
 }
 

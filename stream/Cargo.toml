@@ -1,0 +1,15 @@
+[package]
+name = "stream"
+authors = ["rosingrind"]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4.19"
+async-std = "1.12.0"
+
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.12.0"

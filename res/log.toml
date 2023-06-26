@@ -23,6 +23,16 @@ kind = "file"
 path = "log/socket.log"
 encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} | {h({l}):>5.5} | T:{i:<5.5} - {m}{n}" }
 
+[appenders.stream]
+kind = "file"
+path = "log/stream.log"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} | {h({l}):>5.5} | T:{i:<5.5} - {m}{n}" }
+
+[appenders.wasapi]
+kind = "file"
+path = "log/wasapi.log"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} | {h({l}):>5.5} | T:{i:<5.5} - {m}{n}" }
+
 [root]
 level = "off"
 
@@ -31,4 +41,6 @@ level = "off"
 "socket::udp" = { level = "trace", appenders = ["stdout", "socket"], additive = false }
 "socket" = { level = "trace", appenders = ["socket"] }
 "cipher" = { level = "trace", appenders = ["cipher"] }
+"stream" = { level = "trace", appenders = ["stream"] }
 "async_io" = { level = "debug", appenders = ["driver"], additive = false }
+"wasapi" = { level = "debug", appenders = ["wasapi"] }
