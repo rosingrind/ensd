@@ -7,7 +7,7 @@ use log::{trace, warn};
 use std::io;
 
 use crate::err::{ERR_CONNECTION, ERR_PIPE_BROKE, ERR_VALIDATION};
-use crate::{StreamHandle, REQUEST_MSG_DUR};
+use crate::{SocketHandle, REQUEST_MSG_DUR};
 
 const P2P_REQ_TAG: &[u8] = b"p2p\0req\0";
 const REQUEST_MSG_TTL: u32 = 32;
@@ -31,7 +31,7 @@ pub(super) trait P2P {
 
 // TODO: add NAT type check, see https://github.com/Azure/RDS-Templates/tree/master/AVD-TestShortpath
 #[async_trait(?Send)]
-impl P2P for StreamHandle {
+impl P2P for SocketHandle {
     async fn try_nat_tr<A: ToSocketAddrs>(&self, addr: &A, retries: u16) -> io::Result<()> {
         let ttl = self.socket.get_ttl().await?;
         self.socket.set_ttl(REQUEST_MSG_TTL).await?;

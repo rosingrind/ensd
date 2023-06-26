@@ -1,35 +1,34 @@
 [appenders.stdout]
 kind = "console"
-encoder = { pattern = "[{({l}):1.1}] {m}{n}" }
+encoder = { pattern = "[{h({l}):1.1}] {m}{n}" }
 filters = [{ kind = "threshold", level = "info" }]
 
 [appenders.common]
 kind = "file"
 path = "log/bench.log"
-encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} {({l}):>5.5} - {m}{n}" }
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} | {h({l}):>5.5} | T:{i:<5.5} - {m}{n}" }
 
 [appenders.driver]
 kind = "file"
 path = "log/driver.log"
-encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} {({l}):>5.5} - {m}{n}" }
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} | {h({l}):>5.5} | T:{i:<5.5} - {m}{n}" }
 
 [appenders.cipher]
 kind = "file"
 path = "log/cipher.log"
-encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} {({l}):>5.5} - {m}{n}" }
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} | {h({l}):>5.5} | T:{i:<5.5} - {m}{n}" }
 
-[appenders.stream]
+[appenders.socket]
 kind = "file"
-path = "log/stream.log"
-encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} {({l}):>5.5} - {m}{n}" }
+path = "log/socket.log"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S)} | {h({l}):>5.5} | T:{i:<5.5} - {m}{n}" }
 
 [root]
 level = "off"
 
 [loggers]
 "ensd" = { level = "trace", appenders = ["stdout", "common"], additive = false }
-"stream::udp" = { level = "trace", appenders = ["stdout", "stream"], additive = false }
-"stream" = { level = "trace", appenders = ["stream"], additive = false }
-"cipher::aes" = { level = "trace", appenders = ["cipher"], additive = false }
-"cipher::cha" = { level = "trace", appenders = ["cipher"], additive = false }
+"socket::udp" = { level = "trace", appenders = ["stdout", "socket"], additive = false }
+"socket" = { level = "trace", appenders = ["socket"] }
+"cipher" = { level = "trace", appenders = ["cipher"] }
 "async_io" = { level = "debug", appenders = ["driver"], additive = false }

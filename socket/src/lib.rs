@@ -9,18 +9,18 @@ use std::io;
 use std::time::Duration;
 
 use crate::p2p::P2P;
-use crate::udp::UdpStream;
+use crate::udp::UdpSocketHandle;
 
 const REQUEST_RETRIES: u16 = 1000;
 const REQUEST_MSG_DUR: Duration = Duration::from_millis(25);
 
 pub const LOOPBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
-/// `IOStream` trait for heterogeneous transport implementation.
-/// Assumes method implementations to [`connect`][IOStream::connect], [`poll`][IOStream::poll]
-/// and [`push`][IOStream::push] data through channel.
+/// `IOSocket` trait for heterogeneous transport implementation.
+/// Assumes method implementations to [`connect`][IOSocket::connect], [`poll`][IOSocket::poll]
+/// and [`push`][IOSocket::push] data through channel.
 #[async_trait]
-pub trait IOStream {
+pub trait IOSocket {
     async fn bind(&self, addr: &[SocketAddr]) -> io::Result<()>;
 
     async fn peer(&self) -> io::Result<SocketAddr>;
@@ -44,20 +44,20 @@ pub trait IOStream {
     async fn get_ext_ip(&self, retries: u16) -> io::Result<SocketAddr>;
 }
 
-pub struct StreamHandle {
-    socket: Box<dyn IOStream + Sync + Send>,
+pub struct SocketHandle {
+    socket: Box<dyn IOSocket + Sync + Send>,
     pub pub_ip: Option<SocketAddr>,
 }
 
 #[allow(dead_code)]
-impl StreamHandle {
+impl SocketHandle {
     pub async fn new<A: ToSocketAddrs>(
         addr: &A,
         ttl: Option<u32>,
         sw_tag: Option<&'static str>,
-    ) -> StreamHandle {
+    ) -> SocketHandle {
         // TODO: WebRTC socket backend implementation
-        let socket = get_udp_stream(addr, ttl, sw_tag).await;
+        let socket = get_udp_socket(addr, ttl, sw_tag).await;
         let pub_ip = match socket.get_ext_ip(REQUEST_RETRIES).await {
             Ok(ip) => {
                 trace!(
@@ -81,7 +81,7 @@ impl StreamHandle {
                 None
             }
         };
-        StreamHandle { socket, pub_ip }
+        SocketHandle { socket, pub_ip }
     }
 
     pub async fn bind<A: ToSocketAddrs>(&self, addr: &A) -> io::Result<()> {
@@ -120,22 +120,22 @@ impl StreamHandle {
     }
 }
 
-/// A thread-safe `Stream` constructor.
-/// Returns [`Arc`][Arc] wrapped trait object interfaced with abstract [`IOStream`][IOStream]
+/// A thread-safe `Socket` constructor.
+/// Returns [`Box`][Box] wrapped trait object interfaced with abstract [`IOSocket`][IOSocket]
 /// trait.
 ///
-/// `Stream` builder is meant to be configurable and used with many transports, so it may be
+/// `Socket` builder is meant to be configurable and used with many transports, so it may be
 /// possible to use it with `WebRTC` transport in future.
 ///
 /// Current implementation relies on `UDP`'s [`UdpSocket`][std::net::UdpSocket]
 /// opened with any address of [`SocketAddr`][std::net::SocketAddr] type.
-pub async fn get_udp_stream<A: ToSocketAddrs>(
+pub async fn get_udp_socket<A: ToSocketAddrs>(
     addr: &A,
     ttl: Option<u32>,
     sw_tag: Option<&'static str>,
-) -> Box<dyn IOStream + Sync + Send> {
+) -> Box<dyn IOSocket + Sync + Send> {
     Box::new(
-        UdpStream::new(
+        UdpSocketHandle::new(
             &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>(),
             ttl,
             sw_tag,
@@ -158,28 +158,28 @@ mod tests {
 
     #[async_std::test]
     #[cfg_attr(feature = "ci", ignore)]
-    async fn stream_works() {
+    async fn socket_works() {
         let _guard = TEST_MUTEX.lock().await;
 
         let addr_a = SocketAddr::new(TEST_MACHINE_IP, PORT_A);
         let addr_b = SocketAddr::new(TEST_MACHINE_IP, PORT_B);
 
-        let stream_a = StreamHandle::new(&addr_a, None, None).await;
-        let stream_b = StreamHandle::new(&addr_b, None, None).await;
+        let socket_a = SocketHandle::new(&addr_a, None, None).await;
+        let socket_b = SocketHandle::new(&addr_b, None, None).await;
 
         let addr_a = SocketAddr::new(LOOPBACK_IP, PORT_B);
         let addr_b = SocketAddr::new(LOOPBACK_IP, PORT_A);
 
-        let handle = futures::try_join!(stream_a.bind(&addr_a), stream_b.bind(&addr_b));
+        let handle = futures::try_join!(socket_a.bind(&addr_a), socket_b.bind(&addr_b));
         // hole punching through NAT in `bind` works
         assert!(handle.is_ok());
 
         let handle = futures::try_join!(
-            stream_a.push(TEST_STRING.as_ref()),
-            stream_b.push(TEST_STRING.as_ref())
+            socket_a.push(TEST_STRING.as_ref()),
+            socket_b.push(TEST_STRING.as_ref())
         );
         assert!(handle.is_ok());
-        let res = stream_b.poll().await.unwrap();
+        let res = socket_b.poll().await.unwrap();
         // bound connection works
         assert_eq!(res.as_slice(), TEST_STRING.as_bytes());
     }
@@ -189,10 +189,10 @@ mod tests {
     async fn stun_works() {
         let _guard = TEST_MUTEX.lock().await;
 
-        let stream = UdpStream::new(&[SocketAddr::new(TEST_MACHINE_IP, PORT_A)], None, None)
+        let socket = UdpSocketHandle::new(&[SocketAddr::new(TEST_MACHINE_IP, PORT_A)], None, None)
             .await
             .unwrap();
 
-        assert!(stream.get_ext_ip(REQUEST_RETRIES).await.is_ok());
+        assert!(socket.get_ext_ip(REQUEST_RETRIES).await.is_ok());
     }
 }

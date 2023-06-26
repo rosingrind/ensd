@@ -18,37 +18,37 @@ use stun_codec::{
 };
 
 use crate::err::{ERR_CONNECTION, ERR_FT_TIMEOUT, ERR_STUN_QUERY};
-use crate::IOStream;
+use crate::IOSocket;
 use crate::REQUEST_MSG_DUR;
 
 pub const MSG_END_TAG: &[u8] = b"end\0msg\0";
 pub const PACKET_BUF_SIZE: usize = 256;
 pub const STUN_ADDRESS: &str = "stun.l.google.com:19302";
 
-pub(super) struct UdpStream {
+pub(super) struct UdpSocketHandle {
     socket: UdpSocket,
     sw_tag: Option<&'static str>,
 }
 
-impl UdpStream {
+impl UdpSocketHandle {
     #[allow(dead_code)]
     pub async fn new(
         addr: &[SocketAddr],
         ttl: Option<u32>,
         sw_tag: Option<&'static str>,
-    ) -> io::Result<UdpStream> {
+    ) -> io::Result<Self> {
         let socket = UdpSocket::bind(addr).await?;
         if let Some(ttl) = ttl {
             socket.set_ttl(ttl)?;
         }
 
-        Ok(UdpStream { socket, sw_tag })
+        Ok(UdpSocketHandle { socket, sw_tag })
     }
 }
 
 // TODO: implement abstract buffer tagging utils
 #[async_trait]
-impl IOStream for UdpStream {
+impl IOSocket for UdpSocketHandle {
     async fn bind(&self, addr: &[SocketAddr]) -> io::Result<()> {
         self.socket.connect(addr).await?;
         info!(

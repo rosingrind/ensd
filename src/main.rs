@@ -1,5 +1,5 @@
 use ::cipher::{AppRng, CipherHandle, Encryption, SeedableRng};
-use ::stream::{StreamHandle, LOOPBACK_IP};
+use ::socket::{SocketHandle, LOOPBACK_IP};
 use async_std::{
     fs, io,
     io::WriteExt,
@@ -118,8 +118,8 @@ async fn main() {
     let msg_addr = SocketAddr::new(conf.msg_addr.ip, conf.msg_addr.port);
     let snd_addr = SocketAddr::new(conf.snd_addr.ip, conf.snd_addr.port);
 
-    let msg_stream = Arc::new(StreamHandle::new(&msg_addr, None, SOFTWARE_TAG).await);
-    let snd_stream = Arc::new(StreamHandle::new(&snd_addr, None, SOFTWARE_TAG).await);
+    let msg_stream = Arc::new(SocketHandle::new(&msg_addr, None, SOFTWARE_TAG).await);
+    let snd_stream = Arc::new(SocketHandle::new(&snd_addr, None, SOFTWARE_TAG).await);
 
     info!(
         "socket 'msg' at :{} extern address: {:?}",
@@ -237,7 +237,7 @@ async fn main() {
 }
 
 #[inline]
-async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: String) {
+async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prompt: String) {
     loop {
         let mut buf = String::new();
         let mut out = io::stdout();
@@ -270,7 +270,7 @@ async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prom
 #[inline]
 async fn snd_put_loop(
     cipher: Arc<CipherHandle>,
-    stream: Arc<StreamHandle>,
+    stream: Arc<SocketHandle>,
     rx: Receiver<Vec<f32>>,
     src_rate: u32,
 ) {
@@ -308,7 +308,7 @@ async fn snd_put_loop(
 }
 
 #[inline]
-async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prompt: String) {
+async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prompt: String) {
     loop {
         let buf = task::block_on(stream.poll()).unwrap();
         let mut out = io::stdout();
@@ -332,7 +332,7 @@ async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<StreamHandle>, prom
 #[inline]
 async fn snd_get_loop(
     cipher: Arc<CipherHandle>,
-    stream: Arc<StreamHandle>,
+    stream: Arc<SocketHandle>,
     tx: Sender<Vec<f32>>,
     tgt_rate: u32,
 ) {
