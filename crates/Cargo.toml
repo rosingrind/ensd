@@ -1,0 +1,19 @@
+[workspace]
+members = ["cipher", "socket", "stream"]
+
+[package]
+name = "common"
+authors = ["rosingrind"]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cipher = { path = "cipher" }
+socket = { path = "socket" }
+stream = { path = "stream" }
+
+[workspace.dependencies]
+windows = { version = "*", default-features = false }

@@ -1,8 +1,5 @@
 mod err;
 
-use ::cipher::{AppRng, CipherHandle, Encryption, SeedableRng};
-use ::socket::{SocketHandle, LOOPBACK_IP};
-use ::stream::{mic_stream, out_stream};
 use async_std::{
     channel, fs, io,
     io::WriteExt,
@@ -10,6 +7,11 @@ use async_std::{
     path::Path,
     sync::Arc,
     task,
+};
+use common::{
+    cipher::{AppRng, CipherHandle, Encryption, SeedableRng},
+    socket::{SocketHandle, LOOPBACK_IP},
+    stream::{mic_stream, out_stream},
 };
 use futures::TryFutureExt;
 use log::{debug, error, info, trace};

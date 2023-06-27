@@ -9,6 +9,7 @@ pub enum ErrorKind {
     StringNotUTF8,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
@@ -16,7 +17,6 @@ pub struct Error {
 }
 
 impl Error {
-    #[allow(dead_code)]
     pub fn new(kind: ErrorKind, error: String) -> Self {
         Error { kind, error }
     }
@@ -28,8 +28,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl From<stream::Error> for Error {
-    fn from(value: stream::Error) -> Self {
+impl From<common::stream::Error> for Error {
+    fn from(value: common::stream::Error) -> Self {
         let kind = ErrorKind::StreamFailed;
         Error::new(kind, value.to_string())
     }

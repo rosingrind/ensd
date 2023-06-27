@@ -13,4 +13,4 @@ async-std = "1.12.0"
 
 [target.'cfg(windows)'.dependencies]
 wasapi = "0.12.0"
-windows = { version = "*", no-default-features = true }
+windows = { workspace = true }

@@ -10,6 +10,7 @@ pub enum ErrorKind {
     ChannelIsClosed,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
@@ -17,7 +18,6 @@ pub struct Error {
 }
 
 impl Error {
-    #[allow(dead_code)]
     pub fn new(kind: ErrorKind, error: String) -> Self {
         Error { kind, error }
     }
