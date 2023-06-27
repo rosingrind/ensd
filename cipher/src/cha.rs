@@ -3,7 +3,7 @@ use aead::{
 };
 use cha::cipher::{KeyInit, KeyIvInit, StreamCipher, StreamCipherSeek};
 use chacha20poly1305::{AeadCore, ChaChaPoly1305};
-use log::error;
+use log::{error, trace};
 
 use crate::IOCipher;
 
@@ -35,6 +35,8 @@ where
     N: ArrayLength<u8>,
 {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
+        trace!("encrypting {} bytes of plaintext", plaintext.len());
+
         let nonce = &ChaChaPoly1305::<C, N>::generate_nonce(&mut OsRng);
         Ok([
             nonce.as_ref(),
@@ -44,6 +46,8 @@ where
     }
 
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
+        trace!("encrypting {} bytes at buffer", buffer.len());
+
         let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
         // FIXME: duplicate code fragment
         if nonce.len() == spec {
@@ -60,6 +64,8 @@ where
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
+        trace!("decrypting {} bytes of ciphertext", ciphertext.len());
+
         let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
         if spec > ciphertext.len() {
             error!(
@@ -77,6 +83,8 @@ where
     }
 
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
+        trace!("decrypting {} bytes at buffer", buffer.len());
+
         let spec = Nonce::<ChaChaPoly1305<C, N>>::default().len();
         // FIXME: duplicate code fragment
         if nonce.len() == spec {

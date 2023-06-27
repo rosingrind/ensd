@@ -9,6 +9,7 @@ use aead::{
     rand_core::{block::BlockRng, CryptoRng, RngCore},
     Result,
 };
+use log::{info, trace};
 use serde::Deserialize;
 
 use crate::aes::AesCipher;
@@ -95,6 +96,7 @@ impl CipherHandle {
             Encryption::AES { cipher, nonce } => get_aes_cipher(cipher, nonce, rng),
             Encryption::ChaCha { cipher } => get_cha_cipher(cipher, rng),
         };
+        info!("made instance of cipher handle with parameters '{:?}'", cfg);
 
         CipherHandle { cipher }
     }
@@ -141,6 +143,7 @@ pub fn get_aes_cipher(
     rng: impl CryptoRng + RngCore,
 ) -> Box<dyn IOCipher + Sync + Send> {
     use aes_gcm::KeyInit;
+    trace!("building AES cipher instance");
 
     let gen_rng = BlockRng::<AppRngCore>::from_rng(rng).unwrap();
     match nonce {
@@ -186,6 +189,8 @@ pub fn get_cha_cipher(
     cipher: &ChaSpec,
     rng: impl CryptoRng + RngCore,
 ) -> Box<dyn IOCipher + Sync + Send> {
+    trace!("building CHA cipher instance");
+
     let gen_rng = BlockRng::<AppRngCore>::from_rng(rng).unwrap();
     match cipher {
         ChaSpec::ChaCha20 => Box::new(ChaCipher::<ChaCha20, _>::from(ChaCha20::generate_key(

@@ -4,7 +4,7 @@ mod udp;
 
 use async_std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use async_trait::async_trait;
-use log::{error, trace};
+use log::{error, info, trace};
 use std::io;
 use std::time::Duration;
 
@@ -81,6 +81,11 @@ impl SocketHandle {
                 None
             }
         };
+        info!(
+            "made instance of socket handle with parameters '{:?}'",
+            (ttl, sw_tag)
+        );
+
         SocketHandle { socket, pub_ip }
     }
 
@@ -134,6 +139,8 @@ pub async fn get_udp_socket<A: ToSocketAddrs>(
     ttl: Option<u32>,
     sw_tag: Option<&'static str>,
 ) -> Box<dyn IOSocket + Sync + Send> {
+    trace!("building UDP socket instance");
+
     Box::new(
         UdpSocketHandle::new(
             &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>(),

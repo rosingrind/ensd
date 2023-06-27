@@ -3,7 +3,7 @@ use async_std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 use async_trait::async_trait;
-use log::{trace, warn};
+use log::{error, info, trace, warn};
 use std::io;
 
 use crate::err::{ERR_CONNECTION, ERR_PIPE_BROKE, ERR_VALIDATION};
@@ -40,7 +40,7 @@ impl P2P for SocketHandle {
         let stage_b = [b"b\0".as_ref(), P2P_REQ_TAG].concat();
         let stage_c = [b"c\0".as_ref(), P2P_REQ_TAG].concat();
 
-        trace!(
+        info!(
             "hole punching to {:?}",
             addr.to_socket_addrs()
                 .await
@@ -49,22 +49,30 @@ impl P2P for SocketHandle {
                 .collect::<Vec<_>>()
         );
 
-        let mut msg = stage_a.clone();
+        let mut msg = &stage_a;
         let mut iter = 0..retries;
 
         let res = loop {
-            self.push_to(&msg, addr).await?;
+            self.push_to(msg, addr).await?;
             if let Ok((res, dest)) = self.poll_at().await {
                 if addr.contains(&dest).await {
                     match res {
-                        res if res == stage_a => msg = stage_b.clone(),
-                        res if res == stage_b => msg = stage_c.clone(),
+                        res if res == stage_a => {
+                            trace!("moving up sync to 'stage_b' as got 'stage_a' message");
+                            msg = &stage_b
+                        }
+                        res if res == stage_b => {
+                            trace!("moving up sync to 'stage_c' as got 'stage_b' message");
+                            msg = &stage_c
+                        }
                         res if res == stage_c => {
-                            if msg == stage_c {
-                                self.push_to(&msg, addr).await?;
+                            if msg == &stage_c {
+                                trace!("sync of 'stage_c' done - beginning socket buffer cleanup");
+                                self.push_to(msg, addr).await?;
                                 break Ok(());
                             } else {
-                                msg = stage_c.clone()
+                                trace!("got 'stage_c' message out of order - syncing 'msg'");
+                                msg = &stage_c
                             }
                         }
                         _ => break Err(ERR_VALIDATION),
@@ -72,7 +80,9 @@ impl P2P for SocketHandle {
                     iter = 0..retries
                 }
             }
+
             if iter.next().is_none() {
+                error!("failed {} retries - can't establish connection", retries);
                 break Err(ERR_CONNECTION);
             }
         };

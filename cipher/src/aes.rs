@@ -7,7 +7,7 @@ use aes::{
     Aes128, Aes192, Aes256,
 };
 use aes_gcm::{AesGcm, Key};
-use log::error;
+use log::{error, trace};
 
 use crate::IOCipher;
 
@@ -39,6 +39,8 @@ where
     U: ArrayLength<u8>,
 {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
+        trace!("encrypting {} bytes of plaintext", plaintext.len());
+
         let nonce = &AesGcm::<T, U>::generate_nonce(&mut OsRng);
         Ok([
             nonce.as_ref(),
@@ -48,6 +50,8 @@ where
     }
 
     fn encrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
+        trace!("encrypting {} bytes at buffer", buffer.len());
+
         let spec = Nonce::<AesGcm<T, U>>::default().len();
         // FIXME: duplicate code fragment
         if nonce.len() == spec {
@@ -64,6 +68,8 @@ where
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
+        trace!("decrypting {} bytes of ciphertext", ciphertext.len());
+
         let spec = Nonce::<AesGcm<T, U>>::default().len();
         if spec > ciphertext.len() {
             error!(
@@ -81,6 +87,8 @@ where
     }
 
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
+        trace!("decrypting {} bytes at buffer", buffer.len());
+
         let spec = Nonce::<AesGcm<T, U>>::default().len();
         // FIXME: duplicate code fragment
         if nonce.len() == spec {
