@@ -160,7 +160,7 @@ async fn main() {
 #[inline]
 async fn msg_put_loop(
     cipher: Arc<CipherHandle>,
-    stream: Arc<SocketHandle>,
+    socket: Arc<SocketHandle>,
     prompt: String,
 ) -> Result<()> {
     loop {
@@ -177,7 +177,7 @@ async fn msg_put_loop(
 
         match cipher.encrypt(buf.trim().as_ref()).await {
             Ok(msg) => {
-                if let Err(e) = stream.push(msg.as_slice()).await {
+                if let Err(e) = socket.push(msg.as_slice()).await {
                     error!("failed to push packets with text data: {e}")
                 }
             }
@@ -191,14 +191,14 @@ async fn msg_put_loop(
 #[inline]
 async fn snd_put_loop(
     cipher: Arc<CipherHandle>,
-    stream: Arc<SocketHandle>,
+    socket: Arc<SocketHandle>,
     rx: channel::Receiver<Vec<u8>>,
 ) -> Result<()> {
     loop {
         match rx.recv().await {
             Ok(res) => match cipher.encrypt(res.as_ref()).await {
                 Ok(res) => {
-                    if let Err(err) = stream.push(res.as_ref()).await {
+                    if let Err(err) = socket.push(res.as_ref()).await {
                         error!("failed to push packets with audio data: {err}");
                     }
                 }
@@ -212,11 +212,11 @@ async fn snd_put_loop(
 #[inline]
 async fn msg_get_loop(
     cipher: Arc<CipherHandle>,
-    stream: Arc<SocketHandle>,
+    socket: Arc<SocketHandle>,
     prompt: String,
 ) -> Result<()> {
     loop {
-        match stream.poll().await {
+        match socket.poll().await {
             Ok(buf) => {
                 let mut out = io::stdout();
                 trace!("RX-CRYPT*: '{:?}'", buf);
@@ -246,11 +246,11 @@ async fn msg_get_loop(
 #[inline]
 async fn snd_get_loop(
     cipher: Arc<CipherHandle>,
-    stream: Arc<SocketHandle>,
+    socket: Arc<SocketHandle>,
     tx: channel::Sender<Vec<u8>>,
 ) -> Result<()> {
     loop {
-        match stream.poll().await {
+        match socket.poll().await {
             Ok(res) => match cipher.decrypt(res.as_ref()).await {
                 Ok(res) => {
                     if let Err(err) = tx.send(res).await {
