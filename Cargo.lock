@@ -1137,6 +1137,7 @@ dependencies = [
  "async-std",
  "log",
  "wasapi",
+ "windows 0.34.0",
 ]
 
 [[package]]

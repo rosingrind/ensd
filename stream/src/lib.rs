@@ -1,17 +1,19 @@
+mod err;
+
 use async_std::channel;
-use log::{error, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use std::collections::VecDeque;
-use std::error;
 use wasapi::{Direction, SampleType, ShareMode, WaveFormat};
 
-type BoxError = Box<dyn error::Error>;
-type AudioRes<T> = Result<T, BoxError>;
+pub use crate::err::Error;
 
-const S_RATE: usize = 48000;
+pub type Result<T> = core::result::Result<T, Error>;
+
+const S_RATE: usize = 32000;
 const CHUNK_SIZE: usize = 4096;
 const TIMEOUT: u32 = 1000;
 
-pub async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> AudioRes<()> {
+pub async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> Result<()> {
     wasapi::initialize_sta()?;
     let device = wasapi::get_default_device(&Direction::Render)?;
     let mut audio_client = device.get_iaudioclient()?;
@@ -71,9 +73,9 @@ pub async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> AudioRes<()> {
             &mut sample_queue,
             None,
         )?;
-        if let e @ Err(_) = h_event.wait_for_event(TIMEOUT) {
+        if let Err(e) = h_event.wait_for_event(TIMEOUT) {
             audio_client.stop_stream()?;
-            return e;
+            return Err(e.into());
         }
         trace!(
             "put {:04} frames into out - cycle ended",
@@ -82,7 +84,7 @@ pub async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> AudioRes<()> {
     }
 }
 
-pub async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> AudioRes<()> {
+pub async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> Result<()> {
     wasapi::initialize_sta()?;
     let device = wasapi::get_default_device(&Direction::Capture)?;
     let mut audio_client = device.get_iaudioclient()?;
@@ -96,6 +98,22 @@ pub async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> AudioRes<()> {
         "default audio-client period {}, min period {}",
         def_time, min_time
     );
+
+    if let Ok(Some(support_format)) = audio_client.is_supported(&desired_format, &ShareMode::Shared)
+    {
+        info!(
+            "desired format is partially supported by '{:?}'",
+            support_format
+        );
+
+        let desired_nch = desired_format.get_nchannels();
+        let support_nch = support_format.get_nchannels();
+
+        if desired_nch != support_nch {
+            debug!("{} != {}", desired_nch, support_nch);
+            todo!()
+        }
+    }
 
     audio_client.initialize_client(
         &desired_format,
@@ -124,9 +142,9 @@ pub async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> AudioRes<()> {
 
         let len = sample_queue.len();
         render_client.read_from_device_to_deque(block_align as usize, &mut sample_queue)?;
-        if let e @ Err(_) = h_event.wait_for_event(TIMEOUT) {
+        if let Err(e) = h_event.wait_for_event(TIMEOUT) {
             audio_client.stop_stream()?;
-            return e;
+            return Err(e.into());
         }
         trace!(
             "got {:04} frames from mic - cycle ended",

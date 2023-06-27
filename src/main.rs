@@ -1,17 +1,22 @@
+mod err;
+
 use ::cipher::{AppRng, CipherHandle, Encryption, SeedableRng};
 use ::socket::{SocketHandle, LOOPBACK_IP};
 use ::stream::{mic_stream, out_stream};
 use async_std::{
     channel, fs, io,
     io::WriteExt,
-    net::{AddrParseError, IpAddr, SocketAddr},
+    net::{IpAddr, SocketAddr},
     path::Path,
     sync::Arc,
     task,
 };
+use futures::TryFutureExt;
 use log::{debug, error, info, trace};
 use serde::Deserialize;
 use std::env;
+
+use crate::err::Error;
 
 const RESOURCES_PATH: &str = "res";
 const UNICODE_WHITE_SQUARE: char = '\u{25A0}';
@@ -32,6 +37,8 @@ struct UDP {
     port: u16,
 }
 
+pub type Result<T> = core::result::Result<T, Error>;
+
 async fn request_phrase() -> String {
     let msg = format!("[{UNICODE_WHITE_SQUARE}] enter seed phrase: ");
     let mut out = io::stdout();
@@ -44,7 +51,9 @@ async fn request_phrase() -> String {
     phrase
 }
 
-async fn request_named_remote(name: &str) -> Result<SocketAddr, AddrParseError> {
+async fn request_named_remote(
+    name: &str,
+) -> core::result::Result<SocketAddr, impl std::error::Error> {
     let msg = format!("[{UNICODE_WHITE_SQUARE}] enter remote addr for socket '{name}': ");
     let mut out = io::stdout();
     out.write_all(msg.as_ref()).await.unwrap();
@@ -118,62 +127,51 @@ async fn main() {
     let (tx, rx) = channel::unbounded();
 
     // encode to 44100, encrypt and send
-    task::spawn(snd_put_loop(cipher.clone(), snd_stream.clone(), rx));
+    let t1 = task::spawn(snd_put_loop(cipher.clone(), snd_stream.clone(), rx));
 
     // collect samples to buf
-    task::spawn(async move {
-        if let Err(err) = mic_stream(tx).await {
-            error!(
-                "worker 'mic' failed with error '{}'",
-                err.to_string().trim()
-            );
-        }
-    });
+    let t2 = task::spawn(mic_stream(tx)).map_err(|e| e.into());
 
     let (tx, rx) = channel::unbounded();
 
     // get samples, decrypt and decode to tgt_rate
-    task::spawn(snd_get_loop(cipher.clone(), snd_stream.clone(), tx));
+    let t3 = task::spawn(snd_get_loop(cipher.clone(), snd_stream.clone(), tx));
 
     // collect and play samples
-    task::spawn(async move {
-        if let Err(err) = out_stream(rx).await {
-            error!(
-                "worker 'out' failed with error '{}'",
-                err.to_string().trim()
-            );
-        }
-    });
+    let t4 = task::spawn(out_stream(rx)).map_err(|e| e.into());
 
-    task::spawn(msg_put_loop(
+    let t5 = task::spawn(msg_put_loop(
         cipher.clone(),
         msg_stream.clone(),
         format!("[{UNICODE_WHITE_SQUARE}] TX: "),
     ));
 
-    task::spawn(msg_get_loop(
+    let t6 = task::spawn(msg_get_loop(
         cipher.clone(),
         msg_stream.clone(),
         format!("[{UNICODE_WHITE_SQUARE}] TX: "),
     ));
 
-    #[allow(clippy::empty_loop)]
-    loop {}
+    futures::try_join!(t1, t2, t3, t4, t5, t6).unwrap();
 }
 
 #[inline]
-async fn msg_put_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prompt: String) {
+async fn msg_put_loop(
+    cipher: Arc<CipherHandle>,
+    stream: Arc<SocketHandle>,
+    prompt: String,
+) -> Result<()> {
     loop {
         let mut buf = String::new();
         let mut out = io::stdout();
         let del = prompt.chars().map(|_| '\u{8}').collect::<String>();
 
-        out.write_all(del.as_bytes()).await.unwrap();
-        out.write_all(prompt.as_bytes()).await.unwrap();
-        out.flush().await.unwrap();
+        out.write_all(del.as_bytes()).await?;
+        out.write_all(prompt.as_bytes()).await?;
+        out.flush().await?;
         drop(out);
 
-        io::stdin().read_line(&mut buf).await.unwrap();
+        io::stdin().read_line(&mut buf).await?;
 
         match cipher.encrypt(buf.trim().as_ref()).await {
             Ok(msg) => {
@@ -193,7 +191,7 @@ async fn snd_put_loop(
     cipher: Arc<CipherHandle>,
     stream: Arc<SocketHandle>,
     rx: channel::Receiver<Vec<u8>>,
-) {
+) -> Result<()> {
     loop {
         match rx.recv().await {
             Ok(res) => match cipher.encrypt(res.as_ref()).await {
@@ -210,7 +208,11 @@ async fn snd_put_loop(
 }
 
 #[inline]
-async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prompt: String) {
+async fn msg_get_loop(
+    cipher: Arc<CipherHandle>,
+    stream: Arc<SocketHandle>,
+    prompt: String,
+) -> Result<()> {
     loop {
         match stream.poll().await {
             Ok(buf) => {
@@ -222,15 +224,15 @@ async fn msg_get_loop(cipher: Arc<CipherHandle>, stream: Arc<SocketHandle>, prom
                         let del = prompt.chars().map(|_| '\u{8}').collect::<String>();
                         let msg = format!(
                             "[{UNICODE_BLACK_SQUARE}] RX: '{}'\n\n",
-                            String::from_utf8(msg).unwrap()
+                            String::from_utf8(msg)?
                         );
-                        out.write_all(del.as_bytes()).await.unwrap();
-                        out.write_all(msg.as_bytes()).await.unwrap();
-                        out.write_all(prompt.as_bytes()).await.unwrap();
+                        out.write_all(del.as_bytes()).await?;
+                        out.write_all(msg.as_bytes()).await?;
+                        out.write_all(prompt.as_bytes()).await?;
                     }
                     Err(e) => error!("failed to decrypt data from network stream: {e}"),
                 }
-                out.flush().await.unwrap();
+                out.flush().await?;
                 drop(out);
             }
             Err(e) => error!("failed to poll data from network stream: {e}"),
@@ -244,7 +246,7 @@ async fn snd_get_loop(
     cipher: Arc<CipherHandle>,
     stream: Arc<SocketHandle>,
     tx: channel::Sender<Vec<u8>>,
-) {
+) -> Result<()> {
     loop {
         match stream.poll().await {
             Ok(res) => match cipher.decrypt(res.as_ref()).await {
