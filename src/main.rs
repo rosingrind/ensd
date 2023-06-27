@@ -1,5 +1,3 @@
-mod err;
-
 use async_std::{
     channel, fs, io,
     io::WriteExt,
@@ -10,15 +8,13 @@ use async_std::{
 };
 use common::{
     cipher::{AppRng, CipherHandle, Encryption, SeedableRng},
+    howler::{Error, Result},
     socket::{SocketHandle, LOOPBACK_IP},
     stream::{mic_stream, out_stream},
 };
-use futures::TryFutureExt;
 use log::{debug, error, info, trace};
 use serde::Deserialize;
 use std::env;
-
-use crate::err::Error;
 
 const RESOURCES_PATH: &str = "res";
 const UNICODE_WHITE_SQUARE: char = '\u{25A0}';
@@ -39,8 +35,6 @@ struct UDP {
     port: u16,
 }
 
-pub type Result<T> = core::result::Result<T, Error>;
-
 async fn request_phrase() -> String {
     let msg = format!("[{UNICODE_WHITE_SQUARE}] enter seed phrase: ");
     let mut out = io::stdout();
@@ -53,9 +47,7 @@ async fn request_phrase() -> String {
     phrase
 }
 
-async fn request_named_remote(
-    name: &str,
-) -> core::result::Result<SocketAddr, impl std::error::Error> {
+async fn request_named_remote(name: &str) -> Result<SocketAddr> {
     let msg = format!("[{UNICODE_WHITE_SQUARE}] enter remote addr for socket '{name}': ");
     let mut out = io::stdout();
     out.write_all(msg.as_ref()).await.unwrap();
@@ -64,7 +56,7 @@ async fn request_named_remote(
     let mut phrase = String::new();
     io::stdin().read_line(&mut phrase).await.unwrap();
 
-    phrase.trim().parse()
+    phrase.trim().parse().map_err(Error::from)
 }
 
 #[async_std::main]
@@ -132,7 +124,7 @@ async fn main() {
     let t1 = task::spawn(snd_put_loop(cipher.clone(), snd_stream.clone(), rx));
 
     // collect samples to buf
-    let t2 = task::spawn(mic_stream(tx)).map_err(|e| e.into());
+    let t2 = task::spawn(mic_stream(tx));
 
     let (tx, rx) = channel::unbounded();
 
@@ -140,7 +132,7 @@ async fn main() {
     let t3 = task::spawn(snd_get_loop(cipher.clone(), snd_stream.clone(), tx));
 
     // collect and play samples
-    let t4 = task::spawn(out_stream(rx)).map_err(|e| e.into());
+    let t4 = task::spawn(out_stream(rx));
 
     let t5 = task::spawn(msg_put_loop(
         cipher.clone(),

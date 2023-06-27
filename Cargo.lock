@@ -312,6 +312,7 @@ dependencies = [
  "async-std",
  "chacha20",
  "chacha20poly1305",
+ "howler",
  "log",
  "serde",
  "sha2",
@@ -333,6 +334,7 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "cipher 0.1.0",
+ "howler",
  "socket",
  "stream",
 ]
@@ -654,6 +656,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1333fad8d94b82cab989da428b0b36a3435db3870d85e971a1d6dc0a8576722"
 dependencies = [
  "sha1",
+]
+
+[[package]]
+name = "howler"
+version = "0.1.0"
+dependencies = [
+ "aead",
+ "async-std",
+ "bytecodec",
+ "stun_codec",
+ "windows 0.34.0",
 ]
 
 [[package]]
@@ -1122,6 +1135,7 @@ dependencies = [
  "async-trait",
  "bytecodec",
  "futures",
+ "howler",
  "log",
  "rand",
  "stun_codec",
@@ -1142,9 +1156,9 @@ name = "stream"
 version = "0.1.0"
 dependencies = [
  "async-std",
+ "howler",
  "log",
  "wasapi",
- "windows 0.34.0",
 ]
 
 [[package]]

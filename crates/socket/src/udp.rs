@@ -4,10 +4,12 @@ use async_std::{
 };
 use async_trait::async_trait;
 use bytecodec::{DecodeExt, EncodeExt};
+use howler::{
+    consts::{ERR_CONNECTION, ERR_STUN_QUERY},
+    Error, Result,
+};
 use log::{info, trace};
 use rand::Rng;
-use std::io;
-use std::io::{Error, ErrorKind};
 use stun_codec::{
     rfc5389::{
         attributes::{MappedAddress, Software, XorMappedAddress},
@@ -17,7 +19,6 @@ use stun_codec::{
     Message, MessageClass, MessageDecoder, MessageEncoder, TransactionId,
 };
 
-use crate::err::{ERR_CONNECTION, ERR_FT_TIMEOUT, ERR_STUN_QUERY};
 use crate::IOSocket;
 use crate::REQUEST_MSG_DUR;
 
@@ -36,7 +37,7 @@ impl UdpSocketHandle {
         addr: &[SocketAddr],
         ttl: Option<u32>,
         sw_tag: Option<&'static str>,
-    ) -> io::Result<Self> {
+    ) -> Result<Self> {
         let socket = UdpSocket::bind(addr).await?;
         if let Some(ttl) = ttl {
             socket.set_ttl(ttl)?;
@@ -49,7 +50,7 @@ impl UdpSocketHandle {
 // TODO: implement abstract buffer tagging utils
 #[async_trait]
 impl IOSocket for UdpSocketHandle {
-    async fn bind(&self, addr: &[SocketAddr]) -> io::Result<()> {
+    async fn bind(&self, addr: &[SocketAddr]) -> Result<()> {
         self.socket.connect(addr).await?;
         info!(
             "UDP socket at :{} is connected to {:?}",
@@ -59,11 +60,11 @@ impl IOSocket for UdpSocketHandle {
         Ok(())
     }
 
-    async fn peer(&self) -> io::Result<SocketAddr> {
-        self.socket.peer_addr()
+    async fn peer(&self) -> Result<SocketAddr> {
+        self.socket.peer_addr().map_err(Error::from)
     }
 
-    async fn poll(&self) -> io::Result<Vec<u8>> {
+    async fn poll(&self) -> Result<Vec<u8>> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
@@ -72,9 +73,7 @@ impl IOSocket for UdpSocketHandle {
             let len = if res.is_empty() {
                 fut.await
             } else {
-                future::timeout(REQUEST_MSG_DUR, fut)
-                    .await
-                    .map_err(|_| ERR_FT_TIMEOUT)?
+                future::timeout(REQUEST_MSG_DUR, fut).await?
             }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
@@ -86,7 +85,7 @@ impl IOSocket for UdpSocketHandle {
         Ok(res[..res.len() - MSG_END_TAG.len()].to_vec())
     }
 
-    async fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+    async fn poll_at(&self) -> Result<(Vec<u8>, SocketAddr)> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
@@ -95,9 +94,7 @@ impl IOSocket for UdpSocketHandle {
             let (len, addr) = if res.is_empty() {
                 fut.await
             } else {
-                future::timeout(REQUEST_MSG_DUR, fut)
-                    .await
-                    .map_err(|_| ERR_FT_TIMEOUT)?
+                future::timeout(REQUEST_MSG_DUR, fut).await?
             }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
@@ -109,7 +106,7 @@ impl IOSocket for UdpSocketHandle {
         Ok((res[..res.len() - MSG_END_TAG.len()].to_vec(), addr))
     }
 
-    async fn peek(&self) -> io::Result<Vec<u8>> {
+    async fn peek(&self) -> Result<Vec<u8>> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
@@ -118,9 +115,7 @@ impl IOSocket for UdpSocketHandle {
             let len = if res.is_empty() {
                 fut.await
             } else {
-                future::timeout(REQUEST_MSG_DUR, fut)
-                    .await
-                    .map_err(|_| ERR_FT_TIMEOUT)?
+                future::timeout(REQUEST_MSG_DUR, fut).await?
             }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
@@ -132,7 +127,7 @@ impl IOSocket for UdpSocketHandle {
         Ok(res[..res.len() - MSG_END_TAG.len()].to_vec())
     }
 
-    async fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+    async fn peek_at(&self) -> Result<(Vec<u8>, SocketAddr)> {
         let mut buf = [0; PACKET_BUF_SIZE];
         let mut res = Vec::<u8>::with_capacity(PACKET_BUF_SIZE * 4);
 
@@ -141,9 +136,7 @@ impl IOSocket for UdpSocketHandle {
             let (len, addr) = if res.is_empty() {
                 fut.await
             } else {
-                future::timeout(REQUEST_MSG_DUR, fut)
-                    .await
-                    .map_err(|_| ERR_FT_TIMEOUT)?
+                future::timeout(REQUEST_MSG_DUR, fut).await?
             }?;
             res.append(&mut buf[..len].to_vec());
             let tail = &res[res.len() - MSG_END_TAG.len()..];
@@ -155,14 +148,14 @@ impl IOSocket for UdpSocketHandle {
         Ok((res[..res.len() - MSG_END_TAG.len()].to_vec(), addr))
     }
 
-    async fn push(&self, buf: &[u8]) -> io::Result<()> {
+    async fn push(&self, buf: &[u8]) -> Result<()> {
         for buf in [buf, MSG_END_TAG].concat().chunks(PACKET_BUF_SIZE) {
             self.socket.send(buf).await?;
         }
         Ok(())
     }
 
-    async fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()> {
+    async fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> Result<()> {
         for buf in [buf, MSG_END_TAG].concat().chunks(PACKET_BUF_SIZE) {
             for addr in addr {
                 self.socket.send_to(buf, addr).await?;
@@ -171,15 +164,15 @@ impl IOSocket for UdpSocketHandle {
         Ok(())
     }
 
-    async fn get_ttl(&self) -> io::Result<u32> {
-        self.socket.ttl()
+    async fn get_ttl(&self) -> Result<u32> {
+        self.socket.ttl().map_err(Error::from)
     }
 
-    async fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.socket.set_ttl(ttl)
+    async fn set_ttl(&self, ttl: u32) -> Result<()> {
+        self.socket.set_ttl(ttl).map_err(Error::from)
     }
 
-    async fn get_ext_ip(&self, retries: u16) -> io::Result<SocketAddr> {
+    async fn get_ext_ip(&self, retries: u16) -> Result<SocketAddr> {
         trace!("querying STUN at '{}'", STUN_ADDRESS);
         let stun_addr = STUN_ADDRESS
             .to_socket_addrs()
@@ -206,14 +199,14 @@ impl IOSocket for UdpSocketHandle {
                 iter = 0..retries;
             }
             if iter.next().is_none() {
-                break Err(ERR_CONNECTION.into());
+                return Err(ERR_CONNECTION.into());
             }
         }
     }
 }
 
 #[inline]
-fn build_request(software: Option<&str>) -> Result<Vec<u8>, Error> {
+fn build_request(software: Option<&str>) -> Result<Vec<u8>> {
     let random_bytes = rand::thread_rng().gen::<[u8; 12]>();
 
     let mut message = Message::new(
@@ -223,25 +216,18 @@ fn build_request(software: Option<&str>) -> Result<Vec<u8>, Error> {
     );
 
     if let Some(s) = software {
-        message.add_attribute(Attribute::Software(
-            Software::new(s.to_owned()).map_err(|e| Error::new(ErrorKind::InvalidInput, e))?,
-        ));
+        message.add_attribute(Attribute::Software(Software::new(s.to_owned())?));
     }
 
     let mut encoder = MessageEncoder::new();
-    let bytes = encoder
-        .encode_into_bytes(message.clone())
-        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+    let bytes = encoder.encode_into_bytes(message.clone())?;
     Ok(bytes)
 }
 
 #[inline]
-fn decode_address(buf: &[u8]) -> Result<SocketAddr, Error> {
+fn decode_address(buf: &[u8]) -> Result<SocketAddr> {
     let mut decoder = MessageDecoder::<Attribute>::new();
-    let decoded = decoder
-        .decode_from_bytes(buf)
-        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?
-        .map_err(|e| Error::new(ErrorKind::Other, format!("{:?}", e)))?;
+    let decoded = decoder.decode_from_bytes(buf)??;
 
     let external_addr1 = decoded
         .get_attribute::<XorMappedAddress>()

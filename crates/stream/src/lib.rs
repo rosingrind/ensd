@@ -1,13 +1,8 @@
-mod err;
-
 use async_std::channel;
+use howler::Result;
 use log::{debug, error, info, trace, warn};
 use std::collections::VecDeque;
 use wasapi::{Direction, SampleType, ShareMode, WaveFormat};
-
-pub use crate::err::Error;
-
-pub type Result<T> = core::result::Result<T, Error>;
 
 const S_RATE: usize = 32000;
 const CHUNK_SIZE: usize = 4096;

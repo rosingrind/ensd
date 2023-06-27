@@ -1,11 +1,10 @@
-mod err;
 mod p2p;
 mod udp;
 
 use async_std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use async_trait::async_trait;
+use howler::Result;
 use log::{error, info, trace};
-use std::io;
 use std::time::Duration;
 
 use crate::p2p::P2P;
@@ -21,27 +20,27 @@ pub const LOOPBACK_IP: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 /// and [`push`][IOSocket::push] data through channel.
 #[async_trait]
 pub trait IOSocket {
-    async fn bind(&self, addr: &[SocketAddr]) -> io::Result<()>;
+    async fn bind(&self, addr: &[SocketAddr]) -> Result<()>;
 
-    async fn peer(&self) -> io::Result<SocketAddr>;
+    async fn peer(&self) -> Result<SocketAddr>;
 
-    async fn poll(&self) -> io::Result<Vec<u8>>;
+    async fn poll(&self) -> Result<Vec<u8>>;
 
-    async fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)>;
+    async fn poll_at(&self) -> Result<(Vec<u8>, SocketAddr)>;
 
-    async fn peek(&self) -> io::Result<Vec<u8>>;
+    async fn peek(&self) -> Result<Vec<u8>>;
 
-    async fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)>;
+    async fn peek_at(&self) -> Result<(Vec<u8>, SocketAddr)>;
 
-    async fn push(&self, buf: &[u8]) -> io::Result<()>;
+    async fn push(&self, buf: &[u8]) -> Result<()>;
 
-    async fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> io::Result<()>;
+    async fn push_to(&self, buf: &[u8], addr: &[SocketAddr]) -> Result<()>;
 
-    async fn get_ttl(&self) -> io::Result<u32>;
+    async fn get_ttl(&self) -> Result<u32>;
 
-    async fn set_ttl(&self, ttl: u32) -> io::Result<()>;
+    async fn set_ttl(&self, ttl: u32) -> Result<()>;
 
-    async fn get_ext_ip(&self, retries: u16) -> io::Result<SocketAddr>;
+    async fn get_ext_ip(&self, retries: u16) -> Result<SocketAddr>;
 }
 
 pub struct SocketHandle {
@@ -89,37 +88,37 @@ impl SocketHandle {
         SocketHandle { socket, pub_ip }
     }
 
-    pub async fn bind<A: ToSocketAddrs>(&self, addr: &A) -> io::Result<()> {
+    pub async fn bind<A: ToSocketAddrs>(&self, addr: &A) -> Result<()> {
         self.try_nat_tr(addr, REQUEST_RETRIES).await?;
         let addr = &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
         self.socket.bind(addr).await
     }
 
-    pub async fn peer(&self) -> io::Result<SocketAddr> {
+    pub async fn peer(&self) -> Result<SocketAddr> {
         self.socket.peer().await
     }
 
-    pub async fn poll(&self) -> io::Result<Vec<u8>> {
+    pub async fn poll(&self) -> Result<Vec<u8>> {
         self.socket.poll().await
     }
 
-    pub async fn poll_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+    pub async fn poll_at(&self) -> Result<(Vec<u8>, SocketAddr)> {
         self.socket.poll_at().await
     }
 
-    pub async fn peek(&self) -> io::Result<Vec<u8>> {
+    pub async fn peek(&self) -> Result<Vec<u8>> {
         self.socket.peek().await
     }
 
-    pub async fn peek_at(&self) -> io::Result<(Vec<u8>, SocketAddr)> {
+    pub async fn peek_at(&self) -> Result<(Vec<u8>, SocketAddr)> {
         self.socket.peek_at().await
     }
 
-    pub async fn push(&self, buf: &[u8]) -> io::Result<()> {
+    pub async fn push(&self, buf: &[u8]) -> Result<()> {
         self.socket.push(buf).await
     }
 
-    pub async fn push_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: &A) -> io::Result<()> {
+    pub async fn push_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: &A) -> Result<()> {
         let addr = &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
         self.socket.push_to(buf, addr).await
     }

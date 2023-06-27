@@ -1,8 +1,7 @@
-use aead::{
-    consts::U32, generic_array::ArrayLength, Aead, AeadInPlace, Error, Key, Nonce, OsRng, Result,
-};
+use aead::{consts::U32, generic_array::ArrayLength, Aead, AeadInPlace, Key, Nonce, OsRng};
 use cha::cipher::{KeyInit, KeyIvInit, StreamCipher, StreamCipherSeek};
 use chacha20poly1305::{AeadCore, ChaChaPoly1305};
+use howler::{Error, Result};
 use log::{error, trace};
 
 use crate::IOCipher;
@@ -53,13 +52,14 @@ where
         if nonce.len() == spec {
             self.cipher
                 .encrypt_in_place(nonce.into(), associated_data, buffer)
+                .map_err(Error::from)
         } else {
             error!(
                 "'encrypt_at' error: nonce size '{}' is incompatible with '{}'",
                 nonce.len(),
                 spec
             );
-            Err(Error)
+            Err(aead::Error.into())
         }
     }
 
@@ -73,13 +73,13 @@ where
                 spec,
                 ciphertext.len()
             );
-            return Err(Error);
+            return Err(aead::Error.into());
         }
         let (nonce, ciphertext) = {
             let (a, b) = ciphertext.split_at(spec);
             (a.into(), b)
         };
-        self.cipher.decrypt(nonce, ciphertext)
+        self.cipher.decrypt(nonce, ciphertext).map_err(Error::from)
     }
 
     fn decrypt_at(&self, nonce: &[u8], associated_data: &[u8], buffer: &mut Vec<u8>) -> Result<()> {
@@ -90,13 +90,14 @@ where
         if nonce.len() == spec {
             self.cipher
                 .decrypt_in_place(nonce.into(), associated_data, buffer)
+                .map_err(Error::from)
         } else {
             error!(
                 "'decrypt_at' error: nonce size '{}' is incompatible with '{}'",
                 nonce.len(),
                 spec
             );
-            Err(Error)
+            Err(aead::Error.into())
         }
     }
 }

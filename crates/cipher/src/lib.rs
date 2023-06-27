@@ -7,8 +7,8 @@ use ::cha::{cipher::KeyIvInit, ChaCha20, XChaCha20};
 use aead::{
     consts::{U12, U13, U14, U15, U16},
     rand_core::{block::BlockRng, CryptoRng, RngCore},
-    Result,
 };
+use howler::Result;
 use log::{info, trace};
 use serde::Deserialize;
 
