@@ -1,10 +1,10 @@
 [encryption]
 cipher = "ChaCha20"
 
-[msg_addr]
-ip = "0.0.0.0"
-port = 34254
+[client]
+msg = { addr = "0.0.0.0:34254", sw_tag = "ensd_msg" }
+snd = { addr = "0.0.0.0:34054", sw_tag = "ensd_snd" }
 
-[snd_addr]
-ip = "0.0.0.0"
-port = 34054
+[socket]
+retries = 1000
+timeout = 25

@@ -30,3 +30,4 @@ wasapi = "0.12.0"
 windows = { version = "*", default-features = false }
 async-std = "1.12.0"
 log = "0.4.19"
+serde = { version = "1.0" }

@@ -1,38 +1,42 @@
-use async_std::{
-    channel, fs, io,
-    io::WriteExt,
-    net::{IpAddr, SocketAddr},
-    path::Path,
-    sync::Arc,
-    task,
-};
+use async_std::{channel, fs, io, io::WriteExt, net::SocketAddr, path::Path, sync::Arc, task};
 use common::{
     cipher::{AppRng, CipherHandle, Encryption, SeedableRng},
     howler::{Error, Result},
-    socket::{SocketHandle, LOOPBACK_IP},
+    socket::{Client, SocketConfig, SocketHandle, LOOPBACK_IP},
     stream::{mic_stream, out_stream},
 };
 use log::{debug, error, info, trace};
 use serde::Deserialize;
 use std::env;
+use std::time::Duration;
 
 const RESOURCES_PATH: &str = "res";
 const UNICODE_WHITE_SQUARE: char = '\u{25A0}';
 const UNICODE_BLACK_SQUARE: char = '\u{25A1}';
-const SOFTWARE_TAG: Option<&str> = Some("ensd");
 
 #[derive(Debug, Deserialize)]
 struct Config {
     encryption: Encryption,
-    msg_addr: UDP,
-    snd_addr: UDP,
+    client: ClientConfig,
+    socket: SocketConfigRaw,
 }
 
-#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Deserialize)]
-struct UDP {
-    ip: IpAddr,
-    port: u16,
+struct ClientConfig {
+    msg: Client,
+    snd: Client,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SocketConfigRaw {
+    retries: u16,
+    timeout: u64,
+}
+
+impl From<SocketConfigRaw> for SocketConfig {
+    fn from(value: SocketConfigRaw) -> Self {
+        SocketConfig::new(value.retries, Duration::from_millis(value.timeout))
+    }
 }
 
 async fn request_phrase() -> String {
@@ -74,29 +78,34 @@ async fn main() {
         AppRng::from_seed(request_phrase().await.into()),
     ));
 
-    let msg_addr = SocketAddr::new(conf.msg_addr.ip, conf.msg_addr.port);
-    let snd_addr = SocketAddr::new(conf.snd_addr.ip, conf.snd_addr.port);
-
-    let msg_stream = Arc::new(SocketHandle::new(&msg_addr, None, SOFTWARE_TAG).await);
-    let snd_stream = Arc::new(SocketHandle::new(&snd_addr, None, SOFTWARE_TAG).await);
+    let msg_stream = Arc::new(
+        SocketHandle::new(conf.client.msg, conf.socket.clone().into())
+            .await
+            .unwrap() as SocketHandle,
+    );
+    let snd_stream = Arc::new(
+        SocketHandle::new(conf.client.snd, conf.socket.into())
+            .await
+            .unwrap() as SocketHandle,
+    );
 
     info!(
         "socket 'msg' at :{} extern address: {:?}",
-        msg_addr.port(),
-        msg_stream.pub_ip.unwrap_or(msg_addr)
+        msg_stream.loc_ip.port(),
+        msg_stream.pub_ip
     );
     info!(
         "socket 'snd' at :{} extern address: {:?}",
-        snd_addr.port(),
-        snd_stream.pub_ip.unwrap_or(snd_addr)
+        snd_stream.loc_ip.port(),
+        snd_stream.pub_ip
     );
 
     let args = env::args().collect::<Vec<String>>();
     let arg_mode = args.get(1).map(|c| c.trim());
 
     let (msg_remote, snd_remote) = if let Some("loopback") = arg_mode {
-        let msg_remote = SocketAddr::new(LOOPBACK_IP, conf.msg_addr.port);
-        let snd_remote = SocketAddr::new(LOOPBACK_IP, conf.snd_addr.port);
+        let msg_remote = SocketAddr::new(LOOPBACK_IP, msg_stream.loc_ip.port());
+        let snd_remote = SocketAddr::new(LOOPBACK_IP, snd_stream.loc_ip.port());
         (msg_remote, snd_remote)
     } else {
         let msg_remote = loop {
@@ -120,18 +129,12 @@ async fn main() {
 
     let (tx, rx) = channel::unbounded();
 
-    // encode to 44100, encrypt and send
     let t1 = task::spawn(snd_put_loop(cipher.clone(), snd_stream.clone(), rx));
-
-    // collect samples to buf
     let t2 = task::spawn(mic_stream(tx));
 
     let (tx, rx) = channel::unbounded();
 
-    // get samples, decrypt and decode to tgt_rate
     let t3 = task::spawn(snd_get_loop(cipher.clone(), snd_stream.clone(), tx));
-
-    // collect and play samples
     let t4 = task::spawn(out_stream(rx));
 
     let t5 = task::spawn(msg_put_loop(
@@ -139,7 +142,6 @@ async fn main() {
         msg_stream.clone(),
         format!("[{UNICODE_WHITE_SQUARE}] TX: "),
     ));
-
     let t6 = task::spawn(msg_get_loop(
         cipher.clone(),
         msg_stream.clone(),
@@ -201,6 +203,7 @@ async fn snd_put_loop(
     }
 }
 
+// noinspection RsUnresolvedReference
 #[inline]
 async fn msg_get_loop(
     cipher: Arc<CipherHandle>,
@@ -235,6 +238,7 @@ async fn msg_get_loop(
     }
 }
 
+// noinspection RsUnresolvedReference
 #[inline]
 async fn snd_get_loop(
     cipher: Arc<CipherHandle>,
@@ -263,6 +267,12 @@ mod tests {
     #[async_std::test]
     async fn config_is_valid() {
         let path = Path::new(RESOURCES_PATH).join("cfg.toml");
-        toml::from_str::<Config>(&fs::read_to_string(path).await.unwrap()).unwrap();
+
+        let res = fs::read_to_string(path).await;
+        // config is a present resource
+        assert!(res.is_ok());
+        let res = toml::from_str::<Config>(&res.unwrap());
+        // config is a valid `.toml`
+        assert!(res.is_ok());
     }
 }

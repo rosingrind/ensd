@@ -18,7 +18,7 @@ use crate::rng::AppRngCore;
 
 pub use crate::rng::SeedableRng;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Encryption {
     AES {
@@ -39,7 +39,7 @@ pub type AppRng = BlockRng<AppRngCore>;
 /// `AesSpec` for `.toml` config parsing.
 /// Offers [`Aes128`][Aes128], [`Aes192`][Aes192] and [`Aes256`][Aes256] block ciphers
 /// with [`Aes128`][AesSpec::default] being default choice.
-#[derive(Debug, Deserialize, Copy, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub enum AesSpec {
     Aes128,
     Aes192,
@@ -50,7 +50,7 @@ pub enum AesSpec {
 /// `ChaSpec` for `.toml` config parsing.
 /// Offers [`ChaCha20`][ChaCha20] and [`XChaCha20`][XChaCha20] block ciphers with
 /// [`ChaCha20`][ChaSpec::default] being default choice.
-#[derive(Debug, Deserialize, Copy, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub enum ChaSpec {
     #[default]
     ChaCha20,
@@ -62,7 +62,7 @@ pub enum ChaSpec {
 /// [`AesSpec`][AesSpec] ciphers.
 ///
 /// See [`get_aes_cipher`][get_aes_cipher] for details about recommended `AesNonce` values.
-#[derive(Debug, Deserialize, Copy, Clone, Default)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub enum AesNonce {
     #[default]
     U12,

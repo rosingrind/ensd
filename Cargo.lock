@@ -1138,6 +1138,7 @@ dependencies = [
  "howler",
  "log",
  "rand",
+ "serde",
  "stun_codec",
 ]
 

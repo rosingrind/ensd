@@ -8,8 +8,9 @@ use howler::{
     Error, Result,
 };
 use log::{error, info, trace, warn};
+use std::time::Duration;
 
-use crate::{SocketHandle, REQUEST_MSG_DUR};
+use crate::SocketHandle;
 
 const P2P_REQ_TAG: &[u8] = b"p2p\0req\0";
 const REQUEST_MSG_TTL: u32 = 32;
@@ -28,13 +29,23 @@ impl<T: ToSocketAddrs> SocketAddrsUtil for &T {
 
 #[async_trait(?Send)]
 pub(super) trait P2P {
-    async fn try_nat_tr<A: ToSocketAddrs>(&self, addr: &A, retries: u16) -> Result<()>;
+    async fn try_nat_tr<A: ToSocketAddrs>(
+        &self,
+        addr: &A,
+        retries: u16,
+        timeout: Duration,
+    ) -> Result<()>;
 }
 
 // TODO: add NAT type check, see https://github.com/Azure/RDS-Templates/tree/master/AVD-TestShortpath
 #[async_trait(?Send)]
 impl P2P for SocketHandle {
-    async fn try_nat_tr<A: ToSocketAddrs>(&self, addr: &A, retries: u16) -> Result<()> {
+    async fn try_nat_tr<A: ToSocketAddrs>(
+        &self,
+        addr: &A,
+        retries: u16,
+        timeout: Duration,
+    ) -> Result<()> {
         let ttl = self.socket.get_ttl().await?;
         self.socket.set_ttl(REQUEST_MSG_TTL).await?;
 
@@ -91,7 +102,7 @@ impl P2P for SocketHandle {
 
         let res = match res {
             Ok(_) => loop {
-                let res = future::timeout(REQUEST_MSG_DUR, self.peek_at()).await;
+                let res = future::timeout(timeout, self.peek_at()).await;
                 if res.is_err() {
                     break Ok(());
                 }
