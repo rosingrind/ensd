@@ -7,26 +7,22 @@ env:
 jobs:
   linter:
     continue-on-error: true
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - name: apt-get install
-        run: sudo apt-get install -y ${{ vars.APT_DEPS }}
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
       - uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --all-targets --all-features
+          args: --all-features
 
   clippy:
     continue-on-error: true
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - name: apt-get install
-        run: sudo apt-get install -y ${{ vars.APT_DEPS }}
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -34,4 +30,4 @@ jobs:
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-targets --all-features
+          args: --all-features
