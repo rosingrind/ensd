@@ -20,14 +20,48 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/cache/restore@v3
+        id: cache-cargo
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions-rs/toolchain@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
         with:
           toolchain: stable
       - uses: actions-rs/cargo@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          command: fetch
+          args: --locked
+      - uses: actions/cache/save@v3
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache/restore@v3
+        with:
+          path: |
+            target/
+            crates/target/
+          key: ${{ runner.os }}-cargo-target-${{ github.sha }}
+      - uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: "-C opt-level=0"
         with:
           command: test
           args: --workspace --features ci
       - uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: "-C opt-level=0"
         with:
           command: test
           args: --workspace --features ci --manifest-path=crates/Cargo.toml
@@ -38,12 +72,42 @@ jobs:
     if: ${{ inputs.coverage }}
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/cache/restore@v3
+        id: cache-cargo
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions-rs/toolchain@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
         with:
           toolchain: stable
       - uses: actions-rs/cargo@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          command: fetch
+          args: --locked
+      - uses: actions/cache/save@v3
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache/restore@v3
+        with:
+          path: |
+            target/
+            crates/target/
+          key: ${{ runner.os }}-cargo-target-${{ github.sha }}
+      - uses: actions-rs/cargo@v1
         env:
-          RUSTFLAGS: "-C instrument-coverage"
+          RUSTFLAGS: "-C opt-level=0 -C instrument-coverage"
         with:
           command: test
           args: --workspace --features ci

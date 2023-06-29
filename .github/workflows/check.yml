@@ -10,10 +10,42 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/cache/restore@v3
+        id: cache-cargo
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions-rs/toolchain@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
         with:
           toolchain: stable
       - uses: actions-rs/cargo@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          command: fetch
+          args: --locked
+      - uses: actions/cache/save@v3
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache/restore@v3
+        with:
+          path: |
+            target/
+            crates/target/
+          key: ${{ runner.os }}-cargo-target-${{ github.sha }}
+      - uses: actions-rs/cargo@v1
+        env:
+          RUSTFLAGS: "-C opt-level=0"
         with:
           command: check
           args: --all-features
@@ -23,11 +55,42 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/cache/restore@v3
+        id: cache-cargo
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - uses: actions-rs/toolchain@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
         with:
           toolchain: stable
-          components: clippy
+      - uses: actions-rs/cargo@v1
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          command: fetch
+          args: --locked
+      - uses: actions/cache/save@v3
+        if: steps.cache-cargo.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache/restore@v3
+        with:
+          path: |
+            target/
+            crates/target/
+          key: ${{ runner.os }}-cargo-target-${{ github.sha }}
       - uses: actions-rs/clippy-check@v1
+        env:
+          RUSTFLAGS: "-C opt-level=0"
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
