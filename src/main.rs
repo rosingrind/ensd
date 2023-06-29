@@ -84,12 +84,12 @@ async fn main() {
     let msg_stream = Arc::new(
         SocketHandle::new(conf.client.msg, conf.socket.clone().into())
             .await
-            .unwrap() as SocketHandle,
+            .unwrap(),
     );
     let snd_stream = Arc::new(
         SocketHandle::new(conf.client.snd, conf.socket.into())
             .await
-            .unwrap() as SocketHandle,
+            .unwrap(),
     );
 
     info!(
@@ -216,7 +216,6 @@ async fn snd_put_loop(
     }
 }
 
-// noinspection RsUnresolvedReference
 #[inline]
 async fn msg_get_loop(
     cipher: Arc<CipherHandle>,
@@ -251,7 +250,6 @@ async fn msg_get_loop(
     }
 }
 
-// noinspection RsUnresolvedReference
 #[inline]
 async fn snd_get_loop(
     cipher: Arc<CipherHandle>,

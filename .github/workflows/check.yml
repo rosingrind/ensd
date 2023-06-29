@@ -41,7 +41,6 @@ jobs:
         with:
           path: |
             target/
-            crates/target/
           key: ${{ runner.os }}-cargo-target-${{ github.sha }}
       - uses: actions-rs/cargo@v1
         env:
@@ -86,7 +85,6 @@ jobs:
         with:
           path: |
             target/
-            crates/target/
           key: ${{ runner.os }}-cargo-target-${{ github.sha }}
       - uses: actions-rs/clippy-check@v1
         env:

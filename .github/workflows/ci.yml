@@ -42,17 +42,10 @@ jobs:
         with:
           command: build
           args: --features ci
-      - uses: actions-rs/cargo@v1
-        env:
-          RUSTFLAGS: "-C opt-level=0"
-        with:
-          command: build
-          args: --features ci --manifest-path=crates/Cargo.toml
       - uses: actions/cache/save@v3
         with:
           path: |
             target/
-            crates/target/
           key: ${{ runner.os }}-cargo-target-${{ github.sha }}
 
   check:
