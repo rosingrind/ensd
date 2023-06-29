@@ -1,14 +1,17 @@
+mod err;
+
 use async_std::{channel, fs, io, io::WriteExt, net::SocketAddr, path::Path, sync::Arc, task};
 use common::{
     cipher::{AppRng, CipherHandle, Encryption, SeedableRng},
-    howler::{Error, Result},
     socket::{Client, SocketConfig, SocketHandle, LOOPBACK_IP},
-    stream::{mic_stream, out_stream},
+    stream,
 };
 use log::{debug, error, info, trace};
 use serde::Deserialize;
 use std::env;
 use std::time::Duration;
+
+use crate::err::{Error, Result};
 
 const RESOURCES_PATH: &str = "res";
 const UNICODE_WHITE_SQUARE: char = '\u{25A0}';
@@ -135,7 +138,7 @@ async fn main() {
     let (tx, rx) = channel::unbounded();
 
     let t3 = task::spawn(snd_get_loop(cipher.clone(), snd_stream.clone(), tx));
-    let t4 = task::spawn(out_stream(rx));
+    let t4 = task::spawn::<_, Result<()>>(out_stream(rx));
 
     let t5 = task::spawn(msg_put_loop(
         cipher.clone(),
@@ -149,6 +152,16 @@ async fn main() {
     ));
 
     futures::try_join!(t1, t2, t3, t4, t5, t6).unwrap();
+}
+
+#[inline]
+async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> Result<()> {
+    stream::mic_stream(chan).await.map_err(Error::from)
+}
+
+#[inline]
+async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> Result<()> {
+    stream::out_stream(chan).await.map_err(Error::from)
 }
 
 #[inline]

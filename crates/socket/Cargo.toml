@@ -13,10 +13,11 @@ log = { workspace = true }
 async-trait = "0.1.68"
 async-std = { workspace = true, features = ["attributes"] }
 futures = "0.3.28"
-stun_codec = { workspace = true }
+stun_codec = "0.3.2"
 rand = "0.8.5"
-bytecodec = { workspace = true }
+bytecodec = "0.4.15"
 serde = { workspace = true, features = ["derive"] }
+err = { package = "socket_err", path = "err" }
 
 [features]
 ci = []

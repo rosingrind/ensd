@@ -1,5 +1,6 @@
 use async_std::channel;
-use howler::Result;
+use err::{Error, Result};
+use howler::Result as HowlerResult;
 use log::{debug, error, info, trace, warn};
 use std::collections::VecDeque;
 use wasapi::{Direction, SampleType, ShareMode, WaveFormat};
@@ -8,7 +9,12 @@ const S_RATE: usize = 32000;
 const CHUNK_SIZE: usize = 4096;
 const TIMEOUT: u32 = 1000;
 
-pub async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> Result<()> {
+pub async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> HowlerResult<()> {
+    out_stream_internal(chan).await.map_err(Error::into)
+}
+
+#[inline]
+async fn out_stream_internal(chan: channel::Receiver<Vec<u8>>) -> Result<()> {
     wasapi::initialize_sta()?;
     let device = wasapi::get_default_device(&Direction::Render)?;
     let mut audio_client = device.get_iaudioclient()?;
@@ -79,7 +85,12 @@ pub async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> Result<()> {
     }
 }
 
-pub async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> Result<()> {
+pub async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> HowlerResult<()> {
+    mic_stream_internal(chan).await.map_err(Error::into)
+}
+
+#[inline]
+async fn mic_stream_internal(chan: channel::Sender<Vec<u8>>) -> Result<()> {
     wasapi::initialize_sta()?;
     let device = wasapi::get_default_device(&Direction::Capture)?;
     let mut audio_client = device.get_iaudioclient()?;

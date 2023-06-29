@@ -3,9 +3,10 @@ mod ext;
 use std::fmt::{Debug, Display, Formatter};
 
 pub enum Error<U: ToString = String> {
-    CipherError(cipher_err::Error<U>),
-    SocketError(socket_err::Error<U>),
-    StreamError(stream_err::Error<U>),
+    HowlerInternal(common::howler::Error<U>),
+    AddressNotParsed(U),
+    AsyncIOFailed(U),
+    StringNotUTF8(U),
 }
 
 pub type Result<T, U = String> = core::result::Result<T, Error<U>>;
@@ -13,9 +14,10 @@ pub type Result<T, U = String> = core::result::Result<T, Error<U>>;
 impl<U: ToString> Display for Error<U> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let error = match self {
-            Error::CipherError(error) => error.to_string(),
-            Error::SocketError(error) => error.to_string(),
-            Error::StreamError(error) => error.to_string(),
+            Error::HowlerInternal(error) => error.to_string(),
+            Error::AddressNotParsed(error) => error.to_string(),
+            Error::AsyncIOFailed(error) => error.to_string(),
+            Error::StringNotUTF8(error) => error.to_string(),
         };
         write!(f, "{}", error)
     }
@@ -23,7 +25,6 @@ impl<U: ToString> Display for Error<U> {
 
 impl<U: ToString> Debug for Error<U> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: implement debug
         write!(f, "{}", self)
     }
 }

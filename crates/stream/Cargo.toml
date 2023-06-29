@@ -11,6 +11,8 @@ license = "MIT OR Apache-2.0"
 howler = { workspace = true }
 log = { workspace = true }
 async-std = { workspace = true }
+err = { package = "stream_err", path = "err" }
 
 [target.'cfg(windows)'.dependencies]
-wasapi = { workspace = true }
+wasapi = "0.12.0"
+windows = { version = "*", default-features = false }

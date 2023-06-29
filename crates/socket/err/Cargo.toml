@@ -1,5 +1,5 @@
 [package]
-name = "howler"
+name = "socket_err"
 authors = ["rosingrind"]
 version = "0.1.0"
 edition = "2021"
@@ -8,6 +8,6 @@ license = "MIT OR Apache-2.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cipher_err = { path = "../cipher/err" }
-socket_err = { path = "../socket/err" }
-stream_err = { path = "../stream/err" }
+async-std = { workspace = true, features = ["attributes"] }
+stun_codec = "*"
+bytecodec = "*"

@@ -4,7 +4,7 @@ use aes::{
     Aes128, Aes192, Aes256,
 };
 use aes_gcm::{AesGcm, Key};
-use howler::{Error, Result};
+use err::{Error, Result};
 use log::{error, trace};
 
 use crate::IOCipher;

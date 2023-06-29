@@ -8,7 +8,8 @@ use aead::{
     consts::{U12, U13, U14, U15, U16},
     rand_core::{block::BlockRng, CryptoRng, RngCore},
 };
-use howler::Result;
+use err::{Error, Result};
+use howler::Result as HowlerResult;
 use log::{info, trace};
 use serde::Deserialize;
 
@@ -101,8 +102,8 @@ impl CipherHandle {
         CipherHandle { cipher }
     }
 
-    pub async fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        self.cipher.encrypt(plaintext)
+    pub async fn encrypt(&self, plaintext: &[u8]) -> HowlerResult<Vec<u8>> {
+        self.cipher.encrypt(plaintext).map_err(Error::into)
     }
 
     pub async fn encrypt_at(
@@ -110,12 +111,14 @@ impl CipherHandle {
         nonce: &[u8],
         associated_data: &[u8],
         buffer: &mut Vec<u8>,
-    ) -> Result<()> {
-        self.cipher.encrypt_at(nonce, associated_data, buffer)
+    ) -> HowlerResult<()> {
+        self.cipher
+            .encrypt_at(nonce, associated_data, buffer)
+            .map_err(Error::into)
     }
 
-    pub async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        self.cipher.decrypt(ciphertext)
+    pub async fn decrypt(&self, ciphertext: &[u8]) -> HowlerResult<Vec<u8>> {
+        self.cipher.decrypt(ciphertext).map_err(Error::into)
     }
 
     pub async fn decrypt_at(
@@ -123,8 +126,10 @@ impl CipherHandle {
         nonce: &[u8],
         associated_data: &[u8],
         buffer: &mut Vec<u8>,
-    ) -> Result<()> {
-        self.cipher.decrypt_at(nonce, associated_data, buffer)
+    ) -> HowlerResult<()> {
+        self.cipher
+            .decrypt_at(nonce, associated_data, buffer)
+            .map_err(Error::into)
     }
 }
 

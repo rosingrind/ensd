@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 cipher = { path = "cipher", optional = true }
-howler = { path = "howler", optional = true }
+howler = { workspace = true, optional = true }
 socket = { path = "socket", optional = true }
 stream = { path = "stream", optional = true }
 
@@ -23,11 +23,6 @@ all = ["cipher", "howler", "socket", "stream"]
 
 [workspace.dependencies]
 howler = { path = "howler" }
-aead = "*"
-stun_codec = "0.3.2"
-bytecodec = "0.4.15"
-wasapi = "0.12.0"
-windows = { version = "*", default-features = false }
 async-std = "1.12.0"
 log = "0.4.19"
 serde = { version = "1.0" }

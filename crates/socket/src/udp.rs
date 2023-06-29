@@ -5,7 +5,7 @@ use async_std::{
 };
 use async_trait::async_trait;
 use bytecodec::{DecodeExt, EncodeExt};
-use howler::{
+use err::{
     consts::{ERR_CONNECTION, ERR_STUN_QUERY},
     Error, Result,
 };

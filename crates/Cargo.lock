@@ -571,11 +571,7 @@ dependencies = [
 name = "howler"
 version = "0.1.0"
 dependencies = [
- "aead",
  "async-std",
- "bytecodec",
- "stun_codec",
- "windows",
 ]
 
 [[package]]
@@ -874,6 +870,7 @@ dependencies = [
  "howler",
  "log",
  "wasapi",
+ "windows",
 ]
 
 [[package]]

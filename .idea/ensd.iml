@@ -5,9 +5,12 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/cipher/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/howler/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/socket/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/stream/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/howler/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/cipher/err/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/socket/err/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/stream/err/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/log" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/crates/target" />

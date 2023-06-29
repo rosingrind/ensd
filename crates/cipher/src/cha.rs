@@ -1,7 +1,7 @@
 use aead::{consts::U32, generic_array::ArrayLength, Aead, AeadInPlace, Key, Nonce, OsRng};
 use cha::cipher::{KeyInit, KeyIvInit, StreamCipher, StreamCipherSeek};
 use chacha20poly1305::{AeadCore, ChaChaPoly1305};
-use howler::{Error, Result};
+use err::{Error, Result};
 use log::{error, trace};
 
 use crate::IOCipher;

@@ -312,6 +312,7 @@ dependencies = [
  "async-std",
  "chacha20",
  "chacha20poly1305",
+ "cipher_err",
  "howler",
  "log",
  "serde",
@@ -327,6 +328,13 @@ dependencies = [
  "crypto-common",
  "inout",
  "zeroize",
+]
+
+[[package]]
+name = "cipher_err"
+version = "0.1.0"
+dependencies = [
+ "aead",
 ]
 
 [[package]]
@@ -662,11 +670,9 @@ dependencies = [
 name = "howler"
 version = "0.1.0"
 dependencies = [
- "aead",
- "async-std",
- "bytecodec",
- "stun_codec",
- "windows 0.34.0",
+ "cipher_err",
+ "socket_err",
+ "stream_err",
 ]
 
 [[package]]
@@ -1139,6 +1145,7 @@ dependencies = [
  "log",
  "rand",
  "serde",
+ "socket_err",
  "stun_codec",
 ]
 
@@ -1153,13 +1160,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "socket_err"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "bytecodec",
+ "stun_codec",
+]
+
+[[package]]
 name = "stream"
 version = "0.1.0"
 dependencies = [
  "async-std",
  "howler",
  "log",
+ "stream_err",
  "wasapi",
+ "windows 0.34.0",
+]
+
+[[package]]
+name = "stream_err"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "windows 0.34.0",
 ]
 
 [[package]]

@@ -14,7 +14,8 @@ aes = { package = "aes", version = "0.8.3" }
 cha = { package = "chacha20", version = "0.9" }
 aes-gcm = "0.10.2"
 chacha20poly1305 = "0.10.1"
-aead = { workspace = true }
+aead = "*"
 sha2 = "0.10.7"
 async-std = { workspace = true, features = ["attributes"] }
 serde = { workspace = true, features = ["derive"] }
+err = { package = "cipher_err", path = "err" }

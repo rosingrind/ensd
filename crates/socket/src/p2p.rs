@@ -3,7 +3,7 @@ use async_std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 use async_trait::async_trait;
-use howler::{
+use err::{
     consts::{ERR_CONNECTION, ERR_PIPE_BROKE, ERR_VALIDATION},
     Error, Result,
 };
@@ -29,23 +29,13 @@ impl<T: ToSocketAddrs> SocketAddrsUtil for &T {
 
 #[async_trait(?Send)]
 pub(super) trait P2P {
-    async fn try_nat_tr<A: ToSocketAddrs>(
-        &self,
-        addr: &A,
-        retries: u16,
-        timeout: Duration,
-    ) -> Result<()>;
+    async fn try_nat_tr(&self, addr: &[SocketAddr], retries: u16, timeout: Duration) -> Result<()>;
 }
 
 // TODO: add NAT type check, see https://github.com/Azure/RDS-Templates/tree/master/AVD-TestShortpath
 #[async_trait(?Send)]
 impl P2P for SocketHandle {
-    async fn try_nat_tr<A: ToSocketAddrs>(
-        &self,
-        addr: &A,
-        retries: u16,
-        timeout: Duration,
-    ) -> Result<()> {
+    async fn try_nat_tr(&self, addr: &[SocketAddr], retries: u16, timeout: Duration) -> Result<()> {
         let ttl = self.socket.get_ttl().await?;
         self.socket.set_ttl(REQUEST_MSG_TTL).await?;
 
@@ -66,9 +56,9 @@ impl P2P for SocketHandle {
         let mut iter = 0..retries;
 
         let res = loop {
-            self.push_to(msg, addr).await?;
+            self.socket.push_to(msg, addr).await?;
             if let Ok((res, dest)) = self.poll_at().await {
-                if addr.contains(&dest).await {
+                if addr.contains(&dest) {
                     match res {
                         res if res == stage_a => {
                             trace!("moving up sync to 'stage_b' as got 'stage_a' message");
@@ -81,7 +71,7 @@ impl P2P for SocketHandle {
                         res if res == stage_c => {
                             if msg == &stage_c {
                                 trace!("sync of 'stage_c' done - beginning socket buffer cleanup");
-                                self.push_to(msg, addr).await?;
+                                self.socket.push_to(msg, addr).await?;
                                 break Ok(());
                             } else {
                                 trace!("got 'stage_c' message out of order - syncing 'msg'");
@@ -102,16 +92,16 @@ impl P2P for SocketHandle {
 
         let res = match res {
             Ok(_) => loop {
-                let res = future::timeout(timeout, self.peek_at()).await;
+                let res = future::timeout(timeout, self.socket.peek_at()).await;
                 if res.is_err() {
                     break Ok(());
                 }
                 let (res, dest) = res.unwrap()?;
-                if addr.contains(&dest).await {
+                if addr.contains(&dest) {
                     match res {
                         res if res == stage_a || res == stage_b => break Err(ERR_PIPE_BROKE),
                         res if res == stage_c => {
-                            self.poll().await?;
+                            self.socket.poll().await?;
                             warn!("received a message after hole punching stages");
                         }
                         _ => break Ok(()),

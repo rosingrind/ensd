@@ -6,7 +6,8 @@ use async_std::{
     sync::Arc,
 };
 use async_trait::async_trait;
-use howler::Result;
+use err::{Error, Result};
+use howler::Result as HowlerResult;
 use log::{error, info, trace};
 use serde::Deserialize;
 use std::time::Duration;
@@ -93,7 +94,7 @@ pub struct SocketHandle {
 
 #[allow(dead_code)]
 impl SocketHandle {
-    pub async fn new(cfg: Client, socket_cfg: SocketConfig) -> Result<SocketHandle> {
+    pub async fn new(cfg: Client, socket_cfg: SocketConfig) -> HowlerResult<SocketHandle> {
         let socket_cfg = Arc::new(socket_cfg);
         // TODO: WebRTC socket backend implementation
         let socket = match cfg.clone() {
@@ -105,7 +106,7 @@ impl SocketHandle {
             Ok(ip) => ip,
             Err(e) => {
                 error!("can't query internal address for socket of {:?}", cfg);
-                return Err(e);
+                return Err(e.into());
             }
         };
         let pub_ip = match socket.get_wan_ip().await {
@@ -115,7 +116,7 @@ impl SocketHandle {
             }
             Err(e) => {
                 error!("can't query external address for socket on {:?}", loc_ip);
-                return Err(e);
+                return Err(e.into());
             }
         };
         info!("made instance of socket handle with parameters '{:?}'", cfg);
@@ -128,40 +129,42 @@ impl SocketHandle {
         })
     }
 
-    pub async fn bind<A: ToSocketAddrs>(&self, addr: &A) -> Result<()> {
-        self.try_nat_tr(addr, self.socket_cfg.retries, self.socket_cfg.timeout)
-            .await?;
+    pub async fn bind<A: ToSocketAddrs>(&self, addr: &A) -> HowlerResult<()> {
+        let addr_vec = &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
+        self.try_nat_tr(addr_vec, self.socket_cfg.retries, self.socket_cfg.timeout)
+            .await
+            .map_err::<howler::Error, _>(Error::into)?;
         let addr = &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
-        self.socket.bind(addr).await
+        self.socket.bind(addr).await.map_err(Error::into)
     }
 
-    pub async fn peer(&self) -> Result<SocketAddr> {
-        self.socket.peer().await
+    pub async fn peer(&self) -> HowlerResult<SocketAddr> {
+        self.socket.peer().await.map_err(Error::into)
     }
 
-    pub async fn poll(&self) -> Result<Vec<u8>> {
-        self.socket.poll().await
+    pub async fn poll(&self) -> HowlerResult<Vec<u8>> {
+        self.socket.poll().await.map_err(Error::into)
     }
 
-    pub async fn poll_at(&self) -> Result<(Vec<u8>, SocketAddr)> {
-        self.socket.poll_at().await
+    pub async fn poll_at(&self) -> HowlerResult<(Vec<u8>, SocketAddr)> {
+        self.socket.poll_at().await.map_err(Error::into)
     }
 
-    pub async fn peek(&self) -> Result<Vec<u8>> {
-        self.socket.peek().await
+    pub async fn peek(&self) -> HowlerResult<Vec<u8>> {
+        self.socket.peek().await.map_err(Error::into)
     }
 
-    pub async fn peek_at(&self) -> Result<(Vec<u8>, SocketAddr)> {
-        self.socket.peek_at().await
+    pub async fn peek_at(&self) -> HowlerResult<(Vec<u8>, SocketAddr)> {
+        self.socket.peek_at().await.map_err(Error::into)
     }
 
-    pub async fn push(&self, buf: &[u8]) -> Result<()> {
-        self.socket.push(buf).await
+    pub async fn push(&self, buf: &[u8]) -> HowlerResult<()> {
+        self.socket.push(buf).await.map_err(Error::into)
     }
 
-    pub async fn push_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: &A) -> Result<()> {
+    pub async fn push_to<A: ToSocketAddrs>(&self, buf: &[u8], addr: &A) -> HowlerResult<()> {
         let addr = &addr.to_socket_addrs().await.unwrap().collect::<Vec<_>>();
-        self.socket.push_to(buf, addr).await
+        self.socket.push_to(buf, addr).await.map_err(Error::into)
     }
 }
 
