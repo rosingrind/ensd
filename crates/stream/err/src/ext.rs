@@ -1,4 +1,4 @@
-use async_std::channel::TrySendError;
+use async_std::channel::{RecvError, SendError, TryRecvError, TrySendError};
 use windows::Win32::Foundation::{RPC_E_CHANGED_MODE, S_FALSE};
 
 use super::Error;
@@ -25,5 +25,26 @@ impl<T> From<TrySendError<T>> for Error<String> {
             TrySendError::Full(_) => Error::ChannelIsFull(value.to_string()),
             TrySendError::Closed(_) => Error::ChannelIsClosed(value.to_string()),
         }
+    }
+}
+
+impl From<TryRecvError> for Error<String> {
+    fn from(value: TryRecvError) -> Self {
+        match value {
+            TryRecvError::Empty => Error::ChannelIsEmpty(value.to_string()),
+            TryRecvError::Closed => Error::ChannelIsClosed(value.to_string()),
+        }
+    }
+}
+
+impl<T> From<SendError<T>> for Error<String> {
+    fn from(value: SendError<T>) -> Self {
+        Error::ChannelIsClosed(value.to_string())
+    }
+}
+
+impl From<RecvError> for Error<String> {
+    fn from(value: RecvError) -> Self {
+        Error::ChannelIsClosed(value.to_string())
     }
 }

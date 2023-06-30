@@ -17,7 +17,7 @@ toml = "0.7.4"
 log = { workspace = true }
 async-std = { workspace = true, features = ["attributes"] }
 futures = "0.3.28"
-async-trait = "0.1.68"
+async-trait = { workspace = true }
 
 [features]
 default = ["logger"]
@@ -31,6 +31,7 @@ default-features = false
 
 [workspace.dependencies]
 howler = { path = "crates/howler" }
+async-trait = "0.1.68"
 async-std = "1.12.0"
 log = "0.4.19"
 serde = { version = "1.0" }

@@ -6,6 +6,7 @@ pub enum Error<U: ToString = String> {
     AlreadyInitialized(U),
     ConcurrencyModelChanged(U),
     Other(U),
+    ChannelIsEmpty(U),
     ChannelIsFull(U),
     ChannelIsClosed(U),
 }
@@ -18,6 +19,7 @@ impl<U: ToString> Display for Error<U> {
             Error::AlreadyInitialized(error) => error.to_string(),
             Error::ConcurrencyModelChanged(error) => error.to_string(),
             Error::Other(error) => error.to_string(),
+            Error::ChannelIsEmpty(error) => error.to_string(),
             Error::ChannelIsFull(error) => error.to_string(),
             Error::ChannelIsClosed(error) => error.to_string(),
         };
@@ -32,15 +34,3 @@ impl<U: ToString> Debug for Error<U> {
 }
 
 impl<U: ToString> std::error::Error for Error<U> {}
-
-impl From<Error<&str>> for Error {
-    fn from(value: Error<&str>) -> Self {
-        match value {
-            Error::AlreadyInitialized(e) => Error::AlreadyInitialized(e.to_string()),
-            Error::ConcurrencyModelChanged(e) => Error::ConcurrencyModelChanged(e.to_string()),
-            Error::Other(e) => Error::Other(e.to_string()),
-            Error::ChannelIsFull(e) => Error::ChannelIsFull(e.to_string()),
-            Error::ChannelIsClosed(error) => Error::ChannelIsClosed(error.to_string()),
-        }
-    }
-}

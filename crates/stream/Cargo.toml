@@ -10,6 +10,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 howler = { workspace = true }
 log = { workspace = true }
+async-trait = { workspace = true }
 async-std = { workspace = true }
 err = { package = "stream_err", path = "err" }
 

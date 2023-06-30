@@ -4,7 +4,7 @@ use async_std::{channel, fs, io, io::WriteExt, net::SocketAddr, path::Path, sync
 use common::{
     cipher::{AppRng, CipherHandle, Encryption, SeedableRng},
     socket::{Client, SocketConfig, SocketHandle, LOOPBACK_IP},
-    stream,
+    stream::{DeviceType, StreamHandle},
 };
 use log::{debug, error, info, trace};
 use serde::Deserialize;
@@ -133,12 +133,12 @@ async fn main() {
     let (tx, rx) = channel::unbounded();
 
     let t1 = task::spawn(snd_put_loop(cipher.clone(), snd_stream.clone(), rx));
-    let t2 = task::spawn(mic_stream(tx));
+    let t2 = task::spawn(run_stream(StreamHandle::new(DeviceType::Mic(tx)).unwrap()));
 
     let (tx, rx) = channel::unbounded();
 
     let t3 = task::spawn(snd_get_loop(cipher.clone(), snd_stream.clone(), tx));
-    let t4 = task::spawn::<_, Result<()>>(out_stream(rx));
+    let t4 = task::spawn(run_stream(StreamHandle::new(DeviceType::Out(rx)).unwrap()));
 
     let t5 = task::spawn(msg_put_loop(
         cipher.clone(),
@@ -155,13 +155,8 @@ async fn main() {
 }
 
 #[inline]
-async fn mic_stream(chan: channel::Sender<Vec<u8>>) -> Result<()> {
-    stream::mic_stream(chan).await.map_err(Error::from)
-}
-
-#[inline]
-async fn out_stream(chan: channel::Receiver<Vec<u8>>) -> Result<()> {
-    stream::out_stream(chan).await.map_err(Error::from)
+async fn run_stream(stream: StreamHandle) -> Result<()> {
+    stream.play().await.map_err(Error::from)
 }
 
 #[inline]
