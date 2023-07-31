@@ -15,7 +15,7 @@ pub(super) type OutChan = async_std::channel::Receiver<Vec<u8>>;
 
 #[async_trait]
 pub(crate) trait IOAudio {
-    async fn play_rec(&self, chan: &MicChan) -> Result<()>;
+    async fn play_rec(&self, chan: APISyncGuard<MicChan>) -> Result<()>;
 
-    async fn play_out(&self, chan: &OutChan) -> Result<()>;
+    async fn play_out(&self, chan: APISyncGuard<OutChan>) -> Result<()>;
 }

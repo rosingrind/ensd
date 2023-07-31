@@ -3,6 +3,7 @@ mod ext;
 use async_std::{
     channel,
     sync::{Arc, Mutex},
+    task,
 };
 use err::{Error, Result};
 use ext::{AudioClient, WasapiClient};
@@ -18,7 +19,10 @@ use super::{
 pub(super) use crate::ext::DeviceBuilder;
 
 #[inline]
-async fn mic_loop(audio_client: APISyncGuard<AudioClient>, chan: &MicChan) -> Result<()> {
+async fn mic_loop(
+    audio_client: APISyncGuard<AudioClient>,
+    chan: APISyncGuard<MicChan>,
+) -> Result<()> {
     wasapi::initialize_sta()?;
     let api = audio_client.lock().await;
     let audio_client = api.get();
@@ -38,7 +42,7 @@ async fn mic_loop(audio_client: APISyncGuard<AudioClient>, chan: &MicChan) -> Re
         while sample_queue.len() > len {
             trace!("pushing captured samples from buffer to tx channel");
             let chunk = sample_queue.drain(..len).collect::<Vec<_>>();
-            chan.try_send(chunk)?;
+            task::block_on(chan.lock()).try_send(chunk)?;
         }
 
         let len = sample_queue.len();
@@ -56,7 +60,10 @@ async fn mic_loop(audio_client: APISyncGuard<AudioClient>, chan: &MicChan) -> Re
 }
 
 #[inline]
-async fn out_loop(audio_client: APISyncGuard<AudioClient>, chan: &OutChan) -> Result<()> {
+async fn out_loop(
+    audio_client: APISyncGuard<AudioClient>,
+    chan: APISyncGuard<OutChan>,
+) -> Result<()> {
     wasapi::initialize_sta()?;
     let api = audio_client.lock().await;
     let audio_client = api.get();
@@ -78,7 +85,7 @@ async fn out_loop(audio_client: APISyncGuard<AudioClient>, chan: &OutChan) -> Re
 
         while sample_queue.len() < len {
             trace!("feeding more samples to buffer");
-            match chan.try_recv() {
+            match task::block_on(chan.lock()).try_recv() {
                 Ok(buf) => {
                     trace!("appending data received from rx channel");
                     sample_queue.append(&mut VecDeque::from(buf));

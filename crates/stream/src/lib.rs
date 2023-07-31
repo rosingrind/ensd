@@ -1,10 +1,19 @@
 mod ext;
+
+#[cfg(target_os = "macos")]
+mod osx;
+#[cfg(target_os = "windows")]
 mod win;
 
+use async_std::sync::{Arc, Mutex};
 use err::{Error, Result};
 use ext::{BoxClient, MicChan, OutChan};
 use howler::Result as HowlerResult;
-#[cfg(windows)]
+
+use crate::ext::APISyncGuard;
+#[cfg(target_os = "macos")]
+use osx::DeviceBuilder;
+#[cfg(target_os = "windows")]
 use win::DeviceBuilder;
 
 const S_RATE: usize = 32000;
@@ -17,15 +26,15 @@ pub enum DeviceType {
 }
 
 enum ClientType {
-    Mic(BoxClient, MicChan),
-    Out(BoxClient, OutChan),
+    Mic(BoxClient, APISyncGuard<MicChan>),
+    Out(BoxClient, APISyncGuard<OutChan>),
 }
 
 impl ClientType {
     async fn play(&self) -> Result<()> {
         match self {
-            ClientType::Mic(audio_client, chan) => audio_client.play_rec(chan).await,
-            ClientType::Out(audio_client, chan) => audio_client.play_out(chan).await,
+            ClientType::Mic(audio_client, chan) => audio_client.play_rec(chan.clone()).await,
+            ClientType::Out(audio_client, chan) => audio_client.play_out(chan.clone()).await,
         }
     }
 }
@@ -40,8 +49,8 @@ impl StreamHandle {
 
         Ok(StreamHandle {
             client: match device_type {
-                DeviceType::Mic(chan) => ClientType::Mic(client, chan),
-                DeviceType::Out(chan) => ClientType::Out(client, chan),
+                DeviceType::Mic(chan) => ClientType::Mic(client, Arc::new(Mutex::new(chan))),
+                DeviceType::Out(chan) => ClientType::Out(client, Arc::new(Mutex::new(chan))),
             },
         })
     }

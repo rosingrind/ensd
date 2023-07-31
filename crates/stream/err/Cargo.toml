@@ -9,5 +9,10 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 async-std = { workspace = true }
-windows = { version = "*", default-features = false }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+coreaudio-rs = "0.11.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.34.0", default-features = false }
 

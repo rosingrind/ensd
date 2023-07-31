@@ -9,6 +9,19 @@ pub enum Error<U: ToString = String> {
     ChannelIsEmpty(U),
     ChannelIsFull(U),
     ChannelIsClosed(U),
+    Unspecified,
+    SystemSoundClientMessageTimedOut,
+    NoMatchingDefaultAudioUnitFound,
+    RenderCallbackBufferFormatDoesNotMatchAudioUnitStreamFormat,
+    NoKnownSubtype,
+    NonInterleavedInputOnlySupportsMono,
+    UnsupportedSampleRate,
+    UnsupportedStreamFormat,
+    Audio(U),
+    AudioCodec(U),
+    AudioFormat(U),
+    AudioUnit(U),
+    Unknown(U),
 }
 
 pub type Result<T, U = String> = core::result::Result<T, Error<U>>;
@@ -22,6 +35,12 @@ impl<U: ToString> Display for Error<U> {
             Error::ChannelIsEmpty(error) => error.to_string(),
             Error::ChannelIsFull(error) => error.to_string(),
             Error::ChannelIsClosed(error) => error.to_string(),
+            Error::Audio(error) => error.to_string(),
+            Error::AudioCodec(error) => error.to_string(),
+            Error::AudioFormat(error) => error.to_string(),
+            Error::AudioUnit(error) => error.to_string(),
+            Error::Unknown(error) => error.to_string(),
+            error => error.to_string(),
         };
         write!(f, "{}", error)
     }
