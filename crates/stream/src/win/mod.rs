@@ -56,7 +56,8 @@ async fn mic_loop(
             sample_queue.len() - len
         );
     }
-    .map_err(Error::from)
+    .map_err(Error::from)?;
+    Ok(wasapi::deinitialize())
 }
 
 #[inline]
@@ -116,7 +117,8 @@ async fn out_loop(
             buffer_frame_count
         );
     }
-    .map_err(Error::from)
+    .map_err(Error::from)?;
+    Ok(wasapi::deinitialize())
 }
 
 impl DeviceBuilder for StreamHandle {
@@ -128,7 +130,7 @@ impl DeviceBuilder for StreamHandle {
         };
         let device = wasapi::get_default_device(&direction)?;
         let mut audio_client = device.get_iaudioclient()?;
-        let desired_format = WaveFormat::new(32, 32, &SampleType::Float, S_RATE, 2);
+        let desired_format = WaveFormat::new(32, 32, &SampleType::Float, S_RATE, 2, None);
         info!("desired audio format: {:?}", desired_format);
 
         let (def_time, min_time) = audio_client.get_periods()?;

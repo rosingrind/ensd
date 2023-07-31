@@ -14,5 +14,5 @@ async-std = { workspace = true }
 coreaudio-rs = "0.11.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.34.0", default-features = false }
+windows = { version = "*", default-features = false }
 

@@ -18,4 +18,4 @@ err = { package = "stream_err", path = "err" }
 coreaudio-rs = "0.11.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wasapi = "0.12.0"
+wasapi = "0.13.0"
