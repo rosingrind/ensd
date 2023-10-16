@@ -31,7 +31,7 @@ default-features = false
 
 [workspace.dependencies]
 howler = { path = "crates/howler" }
-async-trait = "0.1.73"
+async-trait = "0.1.74"
 async-std = "1.12.0"
 log = "0.4.20"
 serde = { version = "1.0" }
