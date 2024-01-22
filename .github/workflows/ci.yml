@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache/restore@v3
+      - uses: actions/cache/restore@v4
         id: cache-cargo
         with:
           path: |
@@ -27,7 +27,7 @@ jobs:
         with:
           command: fetch
           args: --locked
-      - uses: actions/cache/save@v3
+      - uses: actions/cache/save@v4
         if: steps.cache-cargo.outputs.cache-hit != 'true'
         with:
           path: |
@@ -42,7 +42,7 @@ jobs:
         with:
           command: build
           args: --features ci
-      - uses: actions/cache/save@v3
+      - uses: actions/cache/save@v4
         with:
           path: |
             target/
